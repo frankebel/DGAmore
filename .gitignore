@@ -11,6 +11,9 @@ __pycache__/
 # Custom configuration files
 moldga/dga_config_*.yaml
 
+# Any other files generated during DGA runs
+tests/**/*.hdf5
+
 # IDE folders
 .idea/
 .vscode/
