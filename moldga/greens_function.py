@@ -212,7 +212,10 @@ class GreensFunction(IAmNonLocal, LocalNPoint):
         eigenvals = eigenvals.reshape((self.nq_tot, self.n_bands))
         eigenvecs = eigenvecs.reshape((self.nq_tot, self.n_bands, self.n_bands))
 
-        rho_diag_k = np.where(eigenvals > 0, np.exp(-eigenvals) / (1 + np.exp(-eigenvals)), 1 / (1 + np.exp(eigenvals)))
+        rho_diag_k = np.empty_like(eigenvals)
+        mask = eigenvals > 0
+        rho_diag_k[mask] = np.exp(-eigenvals[mask]) / (1 + np.exp(-eigenvals[mask]))
+        rho_diag_k[~mask] = 1 / (1 + np.exp(eigenvals[~mask]))
         rho_diag_k = np.einsum("...i,ij->...ij", rho_diag_k, np.eye(self.n_bands))
 
         rho_k = (eigenvecs @ rho_diag_k @ np.linalg.inv(eigenvecs)).reshape((*self.nq, self.n_bands, self.n_bands))
