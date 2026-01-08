@@ -80,6 +80,7 @@ class SelfConsistencyConfig:
         self.mixing_history_length: int = 3
         self.use_poly_fit = False
         self.previous_sc_path: str = "./"
+        self.use_lambda_correction: bool = False
 
 
 class EliashbergConfig:

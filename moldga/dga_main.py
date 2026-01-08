@@ -55,14 +55,7 @@ def execute_dga_routine():
         root=0,
     )
 
-    if comm.rank == 0 and config.sys.n_bands != 1 and config.lambda_correction.perform_lambda_correction:
-        raise ValueError(
-            "Lambda correction is not available for multi-band systems. Please disable it in the config file."
-        )
-
-    if config.lambda_correction.perform_lambda_correction:
-        config.self_consistency.max_iter = 1
-        config.self_consistency.mixing = 1.0
+    setup_lambda_correction_settings(comm)
 
     config_parser.save_config_file(path=config.output.output_path, name="dga_config.yaml")
 
@@ -301,6 +294,33 @@ def execute_dga_routine():
 
     logger.log_info("Exiting ...")
     MPI.Finalize()
+
+
+def setup_lambda_correction_settings(comm: MPI.Comm) -> None:
+    """
+    Sets up the lambda correction settings based on the configuration provided by the user. If the user has enabled
+    the lambda correction in the self-consistency settings, it will be enabled in the lambda correction settings as well.
+    If the user has enabled the lambda correction in the lambda correction settings, but not in the self-consistency settings,
+    the self-consistency will be set to a single iteration with full mixing. Will raise an error if the user tries to enable
+    the lambda correction for multi-band systems.
+    """
+    if comm.rank == 0 and config.sys.n_bands != 1 and config.lambda_correction.perform_lambda_correction:
+        raise ValueError(
+            "Lambda correction is not available for multi-band systems. Please disable it in the config file."
+        )
+
+    if config.self_consistency.use_lambda_correction:
+        config.lambda_correction.perform_lambda_correction = True
+        config.logger.log_info("Calculating self-consistency with lambda correction.")
+        return
+
+    if config.lambda_correction.perform_lambda_correction and not config.self_consistency.use_lambda_correction:
+        config.self_consistency.max_iter = 1
+        config.self_consistency.mixing = 1.0
+        config.logger.log_info("Performing one-shot DGA with lambda correction.")
+        return
+
+    config.logger.log_info("Calculating self-consistency without lambda correction.")
 
 
 def configure_matplotlib():

@@ -165,6 +165,7 @@ class ConfigParser:
         conf.mixing_history_length = self._try_parse(sc_section, "mixing_history_length", 3)
         conf.use_poly_fit = self._try_parse(sc_section, "use_poly_fit", False)
         conf.previous_sc_path = self._try_parse(sc_section, "previous_sc_path", "./")
+        conf.use_lambda_correction = self._try_parse(sc_section, "use_lambda_correction", False)
 
         return conf
 
