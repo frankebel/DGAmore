@@ -415,7 +415,9 @@ def calculate_self_energy_q(
         logger.log_info("----------------------------------------")
 
         giwk_full = GreensFunction.get_g_full(sigma_old, mu_history[-1], config.lattice.hamiltonian.get_ek())
-        giwk_full.save(output_dir=config.output.output_path, name="g_dga")
+
+        if comm.rank == 0:
+            giwk_full.save(output_dir=config.output.output_path, name="g_dga")
 
         logger.log_memory_usage("giwk", giwk_full, comm.size)
         gchi0_q = BubbleGenerator.create_generalized_chi0_q(

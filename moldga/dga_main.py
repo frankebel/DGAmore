@@ -81,8 +81,10 @@ def execute_dga_routine():
 
     ek = config.lattice.hamiltonian.get_ek(config.lattice.k_grid)
     g_loc = GreensFunction.create_g_loc(sigma_dmft.create_with_asympt_up_to_core(), ek)
-    sigma_dmft = sigma_dmft
-    g_loc.save(output_dir=config.output.output_path, name="g_loc")
+
+    if comm.rank == 0:
+        g_loc.save(output_dir=config.output.output_path, name="g_loc")
+
     u_loc = config.lattice.hamiltonian.get_local_u()
     v_nonloc = config.lattice.hamiltonian.get_vq(config.lattice.q_grid)
 
