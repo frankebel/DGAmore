@@ -501,12 +501,8 @@ def calculate_self_energy_q(
             )
             logger.log_info(f"Fitted polynomial to sigma at iteration {current_iter}.")
 
-        logger.log_info("Applying mixing strategy for the self-energy.")
-        if comm.rank == 0:
-            sigma_new = apply_mixing_strategy(sigma_new, sigma_old, sigma_dmft, current_iter)
-        else:
-            sigma_new = None
-        sigma_new = comm.bcast(sigma_new)
+        logger.log_info("Applying mixing strategy to the self-energy.")
+        sigma_new = apply_mixing_strategy(sigma_new, sigma_old, sigma_dmft, current_iter)
 
         if config.self_consistency.save_iter and config.output.save_quantities and comm.rank == 0:
             sigma_new.save(name=f"sigma_dga_iteration_{current_iter}", output_dir=config.output.output_path)
