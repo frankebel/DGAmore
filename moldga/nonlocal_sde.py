@@ -35,9 +35,8 @@ def get_hartree_fock(
     occ_qk = occ_qk.reshape(nq_tot, nk_tot, config.sys.n_bands, config.sys.n_bands)
 
     hartree = 2 * (u_loc + v_q0).times("qabcd,dc->ab", config.sys.occ)
-    fock = -1.0 / nq_tot * (u_loc + v_nonloc).compress_q_dimension().times("qadcb,qkdc->kab", occ_qk)
-    hartree, fock = hartree[None, ..., None], fock[..., None]  # [k,o1,o2,v]
-    return hartree, fock
+    fock = -1.0 / nq_tot * (u_loc + v_nonloc).times("qadcb,qkdc->kab", occ_qk)
+    return hartree[None, ..., None], fock[..., None]  # [k,o1,o2,v]
 
 
 def create_auxiliary_chi_r_q(
@@ -430,7 +429,7 @@ def calculate_self_energy_q(
         logger.log_memory_usage("Gchi0_q_full", gchi0_q, comm.size)
         giwk_full = giwk_full.cut_niv(config.box.niw_core + config.box.niv_full)
 
-        f_dc_loc = LocalFourPoint.load(os.path.join(config.output.output_path, "f_dc_loc.npy")).symmetrize_v_vp()
+        f_dc_loc = 2 * LocalFourPoint.load(os.path.join(config.output.output_path, "f_magn_loc.npy")).symmetrize_v_vp()
         kernel = -calculate_sigma_dc_kernel(f_dc_loc, gchi0_q, u_loc)
         del f_dc_loc
         logger.log_info("Calculated double-counting kernel.")

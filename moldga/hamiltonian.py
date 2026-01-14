@@ -117,9 +117,9 @@ class Hamiltonian:
             bands = [a + 1, b + 1, c + 1, d + 1]
             if a == b == c == d:  # U_{llll}
                 interaction_elements.append(InteractionElement(r_loc, bands, udd))
-            elif (a == d and b == c) or (a == c and b == d):  # U_{lmml} or U_{lmlm}
+            elif (a == d and b == c) or (a == b and c == d):  # U_{lmml} or U_{llmm}
                 interaction_elements.append(InteractionElement(r_loc, bands, jdd))
-            elif a == b and c == d:  # U_{llmm}
+            elif a == c and b == d:  # U_{lmlm}
                 interaction_elements.append(InteractionElement(r_loc, bands, vdd))
 
         return self._add_interaction_term(interaction_elements)

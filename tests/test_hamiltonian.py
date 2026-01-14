@@ -92,11 +92,11 @@ def test_kanamori_interaction_with_vdd_2_band():
     assert np.isclose(h._ur_local[1, 1, 1, 1], params["udd"])
 
     for i, j in [(0, 1), (1, 0)]:
-        assert np.isclose(h._ur_local[i, j, i, j], params["jdd"])
+        assert np.isclose(h._ur_local[i, j, i, j], params["vdd"])
         assert np.isclose(h._ur_local[i, j, j, i], params["jdd"])
 
-    assert np.isclose(h._ur_local[0, 0, 1, 1], params["vdd"])
-    assert np.isclose(h._ur_local[1, 1, 0, 0], params["vdd"])
+    assert np.isclose(h._ur_local[0, 0, 1, 1], params["jdd"])
+    assert np.isclose(h._ur_local[1, 1, 0, 0], params["jdd"])
 
 
 def test_convham_2_orbs():

@@ -56,8 +56,8 @@ def test_eliashberg_equation_without_local_part(setup, niw_core, niv_core, niv_s
     lambdas_sing, lambdas_trip, gaps_sing, gaps_trip = eliashberg_solver.solve(
         g_dga, g_dmft, u_loc, v_nonloc, gamma_dens, gamma_magn, comm_mock
     )
-    assert np.allclose(lambdas_sing, np.array([4.17936064, 3.98239343, 3.7661796, 3.6118379]), atol=1e-4)
-    assert np.allclose(lambdas_trip, np.array([3.87211113, 3.27590262, 2.91889808, 2.85647941]), atol=1e-4)
+    assert np.allclose(lambdas_sing, np.array([3.82802792, 3.69113815, 3.63923485, 3.57722091]), atol=1e-4)
+    assert np.allclose(lambdas_trip, np.array([3.31268461, 2.97998614, 2.71194245, 2.71194088]), atol=1e-4)
 
 
 """
