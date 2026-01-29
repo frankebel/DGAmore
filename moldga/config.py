@@ -81,6 +81,7 @@ class SelfConsistencyConfig:
         self.use_poly_fit = False
         self.previous_sc_path: str = "./"
         self.use_lambda_correction: bool = False
+        self.restrict_chi_phys: bool = False
 
 
 class EliashbergConfig:
