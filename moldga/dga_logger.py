@@ -59,7 +59,7 @@ class DgaLogger:
             return
         self._logger.log(level, f"{self.current_time} | {self.total_elapsed_time} | {message}")
 
-    def log_debug(self, message: str, allowed_ranks: tuple = (0,)):
+    def debug(self, message: str, allowed_ranks: tuple = (0,)):
         """
         Logs a debug message. This is intended for detailed debugging information that is not usually needed in production.
         """

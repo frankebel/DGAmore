@@ -105,10 +105,6 @@ def execute_dga_routine():
 
     logger.info("Local Schwinger-Dyson equation (SDE) done.")
 
-    if comm.rank == 0:
-        (2 * f_m).save(name="f_dc_loc", output_dir=config.output.output_path)
-        logger.info(f"Saved F_dc = 2*F_m to file.")
-
     if (config.lambda_correction.perform_lambda_correction or config.output.save_quantities) and comm.rank == 0:
         chi_d.save(name="chi_dens_loc", output_dir=config.output.output_path)
         chi_m.save(name="chi_magn_loc", output_dir=config.output.output_path)
@@ -205,13 +201,6 @@ def execute_dga_routine():
 
         giwk_dga.save(name=f"giwk_dga", output_dir=config.output.output_path)
         logger.info("Saved non-local Green's function as numpy file.")
-
-    if (config.poly_fitting.do_poly_fitting and not config.self_consistency.use_poly_fit) and comm.rank == 0:
-        sigma_fit = sigma_dga.fit_polynomial(config.poly_fitting.n_fit, config.poly_fitting.o_fit, config.box.niv_core)
-        sigma_fit.save(name=f"sigma_dga_fitted", output_dir=config.output.output_path)
-        logger.info(f"Fitted polynomial of degree {config.poly_fitting.o_fit} to sigma.")
-        logger.info("Saved fitted non-local self-energy as numpy file.")
-        del sigma_fit
 
     if config.output.do_plotting and comm.rank == 0:
         kx, ky = config.lattice.k_grid.kx_shift_closed, config.lattice.k_grid.ky_shift_closed

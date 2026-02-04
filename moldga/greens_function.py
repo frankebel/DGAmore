@@ -59,7 +59,7 @@ def update_mu(
     try:
         mu = opt.newton(root_fun, mu, args=(target_filling, ek, sigma_mat, beta, smom0), tol=1e-6)
     except RuntimeError:
-        config.logger.log_debug("Root finding for chemical potential failed, using old chemical potential.")
+        config.logger.debug("Root finding for chemical potential failed, using old chemical potential.")
 
     if np.abs(mu.imag) < 1e-8:
         mu = mu.real

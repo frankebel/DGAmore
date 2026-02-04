@@ -78,7 +78,6 @@ class SelfConsistencyConfig:
         self.mixing: float = 0.2
         self.mixing_strategy: str = "linear"
         self.mixing_history_length: int = 3
-        self.use_poly_fit = False
         self.previous_sc_path: str = "./"
         self.use_lambda_correction: bool = False
         self.restrict_chi_phys: bool = False
@@ -145,18 +144,6 @@ class SystemConfig:
         self.occ_dmft: np.ndarray = np.ndarray(0)
 
 
-class PolyFittingConfig:
-    """
-    Class to store the polynomial fitting parameters. The polynomial fitting is controlled by the order of the polynomial
-    and the number of matsubara frequencies used for the polynomial fit. This is currently not really used.
-    """
-
-    def __init__(self):
-        self.do_poly_fitting: bool = True
-        self.n_fit: int = 4
-        self.o_fit: int = 3
-
-
 class SelfEnergyInterpolationConfig:
     """
     Class to store the interpolation parameters for the self-energy, such as target beta and target niv.
@@ -191,7 +178,6 @@ lambda_correction: LambdaCorrectionConfig = LambdaCorrectionConfig()
 dmft: DmftConfig = DmftConfig()
 sys: SystemConfig = SystemConfig()
 output: OutputConfig = OutputConfig()
-poly_fitting: PolyFittingConfig = PolyFittingConfig()
 self_energy_interpolation: SelfEnergyInterpolationConfig = SelfEnergyInterpolationConfig()
 self_consistency: SelfConsistencyConfig = SelfConsistencyConfig()
 eliashberg: EliashbergConfig = EliashbergConfig()

@@ -28,14 +28,75 @@ def get_hartree_fock(
     .. math:: \Sigma_{HF}^k = 2(U_{abcd} + V^{q=0}_{abcd}) n_{dc} - 1/N_q \sum_q (U_{adcb} + V^{q}_{adcb}) n^{k-q}_{dc}
     where the Hartree-term reads :math:`\Sigma_{H} = 2(U_{abcd} + V^{q=0}_{abcd}) n_{dc}` and the Fock-term reads
     :math:`\Sigma_{F}^k = - 1/N_q \sum_q (U_{adcb} + V^{q}_{adcb}) n^{k-q}_{dc}`.
+    Processes the Fock-Term in block-diagonal orbital space to save memory, as for high momentum grids,
+    the occ_qk property can become large.
     """
     v_q0 = v_nonloc.find_q((0, 0, 0))
-    occ_qk = np.array([np.roll(config.sys.occ_k, [-i for i in q], axis=(0, 1, 2)) for q in q_list])  # [q,k,o1,o2]
-    nq_tot, nk_tot = np.prod(config.lattice.nq), np.prod(config.lattice.nk)
-    occ_qk = occ_qk.reshape(nq_tot, nk_tot, config.sys.n_bands, config.sys.n_bands)
-
     hartree = 2 * (u_loc + v_q0).times("qabcd,dc->ab", config.sys.occ)
-    fock = -1.0 / nq_tot * (u_loc + v_nonloc).times("qadcb,qkdc->kab", occ_qk)
+
+    def _find_orbital_blocks(occ_k, tol=1e-12):
+        mat = np.abs(occ_k).sum(axis=(0, 1, 2))
+        adj = (mat > tol) | (mat.T > tol)
+        nb = mat.shape[0]
+        visited = np.zeros(nb, dtype=bool)
+        blocks = []
+        for i in range(nb):
+            if visited[i]:
+                continue
+            stack = [i]
+            comp = []
+            visited[i] = True
+            while stack:
+                u = stack.pop()
+                comp.append(u)
+                neigh = np.nonzero(adj[u])[0]
+                for v in neigh:
+                    if not visited[v]:
+                        visited[v] = True
+                        stack.append(v)
+            blocks.append(sorted(comp))
+        return blocks
+
+    v_q = v_nonloc.reduce_q(q_list)
+    v_q_mat = (u_loc + v_q).mat
+
+    nkx, nky, nkz = config.lattice.k_grid.nk
+    nk_tot = config.lattice.k_grid.nk_tot
+    nb = config.sys.n_bands
+    nq_tot = config.lattice.q_grid.nk_tot
+
+    q_arr = np.asarray(q_list, dtype=int)
+    nq = q_arr.shape[0]
+    kxs = np.arange(nkx, dtype=int)
+    kys = np.arange(nky, dtype=int)
+    kzs = np.arange(nkz, dtype=int)
+
+    kx_idx = (kxs[None, :] + q_arr[:, 0][:, None]) % nkx  # (nq, nkx)
+    ky_idx = (kys[None, :] + q_arr[:, 1][:, None]) % nky  # (nq, nky)
+    kz_idx = (kzs[None, :] + q_arr[:, 2][:, None]) % nkz  # (nq, nkz)
+
+    # expanded views for advanced indexing per block (will broadcast to (nq,nkx,nky,nkz,bs,bs))
+    kx_idx_exp = kx_idx[:, :, None, None, None, None]
+    ky_idx_exp = ky_idx[:, None, :, None, None, None]
+    kz_idx_exp = kz_idx[:, None, None, :, None, None]
+
+    blocks = _find_orbital_blocks(config.sys.occ_k)
+    fock = np.zeros((nk_tot, nb, nb), dtype=v_q_mat.dtype)
+
+    for block in blocks:
+        idx = np.array(block, dtype=int)
+        bs = len(idx)
+        if bs == 0:
+            continue
+
+        idx_row = idx[None, None, None, None, :, None]  # shape (1,1,1,1,bs,1)
+        idx_col = idx[None, None, None, None, None, :]  # shape (1,1,1,1,1,bs)
+        occ_block_qk_6d = config.sys.occ_k[kx_idx_exp, ky_idx_exp, kz_idx_exp, idx_row, idx_col]
+        occ_block_qk = occ_block_qk_6d.reshape(nq, nk_tot, bs, bs)
+        uv_block = v_q_mat.take(idx, axis=1).take(idx, axis=2).take(idx, axis=3).take(idx, axis=4)
+        block_contrib = -1.0 / nq_tot * np.einsum("qadcb,qkdc->kab", uv_block, occ_block_qk, optimize=True)
+        fock[:, idx[:, None], idx] += block_contrib
+
     return hartree[None, ..., None], fock[..., None]  # [k,o1,o2,v]
 
 
@@ -268,53 +329,100 @@ def calculate_sigma_from_kernel(kernel: FourPoint, giwk: GreensFunction, my_full
     return SelfEnergy(mat, config.lattice.nk, False).compress_q_dimension()
 
 
-def calculate_sigma_from_kernel_fast(kernel: FourPoint, giwk: GreensFunction, my_full_q_list: np.ndarray) -> SelfEnergy:
+def calculate_sigma_from_kernel_fast(
+    kernel: FourPoint,
+    giwk: GreensFunction,
+    my_full_q_list: np.ndarray,
+) -> SelfEnergy:
     r"""
     Returns :math:`\Sigma_{ij}^{k} = -1/2 * 1/\beta * 1/N_q \sum_q [ U^q_{r;aibc} * K_{r;cbjd}^{qv} * G_{ad}^{w-v} ]`.
     For very large momentum grids, this function is the slowest part compared to the rest of the code due to the
-    repeated loops. Potential speed-ups could be achieved by batching the q-points or using numba.
+    repeated loops. There is no real way to speed it up further without leveraging GPUs or other hardware accelerators.
     """
+    nkx, nky, nkz = config.lattice.k_grid.nk
+    nb = config.sys.n_bands
+    niv_core = config.box.niv_core
 
-    mat = np.zeros(
-        (*config.lattice.k_grid.nk, config.sys.n_bands, config.sys.n_bands, config.box.niv_core),
-        dtype=kernel.mat.dtype,
-    )
-
+    mat = np.zeros((nkx, nky, nkz, nb, nb, niv_core), dtype=kernel.mat.dtype)
     wn = MFHelper.wn(config.box.niw_core)
 
-    nkx, nky, nkz = config.lattice.k_grid.nk
-    vdim = config.box.niv_core
-    xyz = config.lattice.k_grid.nk_tot
-    nb = config.sys.n_bands
-
-    giwk_mat_f = np.asfortranarray(giwk.mat)
-    kernel = np.asfortranarray(kernel.to_full_niw_range().mat)
-    acc_2d = np.empty((xyz, nb**2), dtype=mat.dtype)
+    giwk_mat = np.asfortranarray(giwk.mat)
+    kernel_mat = np.asfortranarray(kernel.to_full_niw_range().mat)[..., niv_core:]
 
     kxs, kys, kzs = np.arange(nkx), np.arange(nky), np.arange(nkz)
     kx_indices = [((kxs + q[0]) % nkx) for q in my_full_q_list]
     ky_indices = [((kys + q[1]) % nky) for q in my_full_q_list]
     kz_indices = [((kzs + q[2]) % nkz) for q in my_full_q_list]
 
-    for idx_q, q in enumerate(my_full_q_list):
-        g_q_view = giwk_mat_f[
-            kx_indices[idx_q][:, None, None], ky_indices[idx_q][None, :, None], kz_indices[idx_q][None, None, :], ...
-        ].reshape(xyz, *giwk_mat_f.shape[3:])
+    g_buf = np.empty((nkx, nky, nkz, nb, nb, niv_core), dtype=mat.dtype)
+    acc = np.empty((nkx, nky, nkz, nb, nb, niv_core), dtype=mat.dtype)
 
-        for idx_w, wn_i in enumerate(wn):
-            g = (
-                g_q_view[..., giwk.niv - wn_i : giwk.niv + config.box.niv_core - wn_i]
-                .transpose(0, 2, 1, 3)
-                .reshape(xyz, nb**2, vdim)
-            )
-            k = kernel[idx_q, ..., idx_w, config.box.niv_core :].transpose(0, 3, 1, 2, 4).reshape(nb**2, nb**2, vdim)
+    for iq in range(len(my_full_q_list)):
+        g_q_view = giwk_mat[
+            kx_indices[iq][:, None, None], ky_indices[iq][None, :, None], kz_indices[iq][None, None, :], ...
+        ]
 
-            for t in range(vdim):
-                np.matmul(g[:, :, t], k[:, :, t], out=acc_2d)
-                mat[..., t] += acc_2d.reshape(nkx, nky, nkz, nb, nb)
+        for iw, w in enumerate(wn):
+            g_buf[...] = g_q_view[..., giwk.niv - w : giwk.niv + niv_core - w]
+            k_slice = kernel_mat[iq, ..., iw, :]
+            np.einsum("xyzadv,aijdv->xyzijv", g_buf, k_slice, out=acc, optimize=True)
+            np.add(mat, acc, out=mat)
 
     mat *= -0.5 / config.sys.beta / config.lattice.q_grid.nk_tot
     return SelfEnergy(np.ascontiguousarray(mat), config.lattice.nk, False).compress_q_dimension()
+
+
+"""
+import cupy as cp
+import numpy as np
+
+
+def calculate_sigma_from_kernel_fast_gpu(
+    kernel: "FourPoint", giwk: "GreensFunction", my_full_q_list: np.ndarray
+) -> "SelfEnergy":
+    nkx, nky, nkz = config.lattice.k_grid.nk
+    niv_core = config.box.niv_core
+    nb = config.sys.n_bands
+
+    # Determine dtype (use complex64 if original is complex64, else complex128)
+    dtype = cp.complex64 if np.issubdtype(kernel.mat.dtype, np.complex64) else cp.complex128
+
+    # Allocate result on GPU
+    mat_gpu = cp.zeros((nkx, nky, nkz, nb, nb, niv_core), dtype=dtype)
+
+    # Frequency slices
+    wn = MFHelper.wn(config.box.niw_core)
+    freq_slices = [slice(giwk.niv - w, giwk.niv - w + niv_core) for w in wn]
+
+    # Move arrays to GPU
+    giwk_gpu = cp.asarray(np.asfortranarray(giwk.mat), dtype=dtype)
+    kernel_gpu = cp.asarray(np.asfortranarray(kernel.to_full_niw_range().mat), dtype=dtype)
+
+    # Precompute k indices
+    kxs, kys, kzs = cp.arange(nkx), cp.arange(nky), cp.arange(nkz)
+    kx_indices = [((kxs + q[0]) % nkx) for q in my_full_q_list]
+    ky_indices = [((kys + q[1]) % nky) for q in my_full_q_list]
+    kz_indices = [((kzs + q[2]) % nkz) for q in my_full_q_list]
+
+    # Loop over q-points (memory-safe)
+    for idx_q in range(len(my_full_q_list)):
+        # Shifted giwk slice
+        g_q_view = giwk_gpu[
+            kx_indices[idx_q][:, None, None], ky_indices[idx_q][None, :, None], kz_indices[idx_q][None, None, :], ...
+        ]
+
+        for idx_w, fs in enumerate(freq_slices):
+            g_slice = g_q_view[..., fs]  # shape: (xyz, o1, o2, niv_core)
+            k_slice = kernel_gpu[idx_q, ..., idx_w, niv_core:]  # shape: (o1,o2,o3,o4,v)
+            mat_gpu += cp.einsum("aijdv,xyzadv->xyzijv", k_slice, g_slice, optimize=True)
+
+    # Scale result
+    mat_gpu *= -0.5 / config.sys.beta / config.lattice.q_grid.nk_tot
+
+    # Bring back to CPU and wrap as SelfEnergy
+    mat_cpu = cp.asnumpy(mat_gpu)
+    return SelfEnergy(np.ascontiguousarray(mat_cpu), config.lattice.nk, False).compress_q_dimension()
+"""
 
 
 def get_starting_sigma(output_path: str, default_sigma: SelfEnergy) -> tuple[SelfEnergy, int]:
@@ -392,12 +500,10 @@ def calculate_self_energy_q(
 
     # Hartree- and Fock-terms
     v_nonloc = v_nonloc.compress_q_dimension()
-    if comm.rank == 0:
-        hartree, fock = get_hartree_fock(u_loc, v_nonloc, full_q_list)
-    else:
-        hartree, fock = None, None
-    hartree, fock = comm.bcast((hartree, fock), root=0)
+    hartree, fock = get_hartree_fock(u_loc, v_nonloc, my_full_q_list)
+    fock = mpi_dist_fullbz.allreduce(fock)
     logger.info("Calculated Hartree and Fock terms.")
+
     v_nonloc = v_nonloc.reduce_q(my_irr_q_list)
 
     sigma_old, starting_iter = get_starting_sigma(config.self_consistency.previous_sc_path, sigma_dmft)
@@ -405,6 +511,9 @@ def calculate_self_energy_q(
         logger.info(
             f"Using previous calculation and starting the self-consistency loop at iteration {starting_iter+1}."
         )
+
+    sigma_old = sigma_old.cut_niv(config.box.niw_core + config.box.niv_full)
+    sigma_dmft = sigma_dmft.cut_niv(config.box.niw_core + config.box.niv_full)
 
     delta_sigma = sigma_dmft.cut_niv(config.box.niv_core) - sigma_local.cut_niv(config.box.niv_core)
     mu_history = (
@@ -424,7 +533,7 @@ def calculate_self_energy_q(
             giwk_full.save(output_dir=config.output.output_path, name="g_dga")
 
         logger.log_memory_usage("giwk", giwk_full, comm.size)
-        gchi0_q = BubbleGenerator.create_generalized_chi0_q(
+        gchi0_q = BubbleGenerator.create_generalized_chi0_q_fast(
             giwk_full, config.box.niw_core, config.box.niv_full, my_irr_q_list
         )
 
@@ -434,7 +543,7 @@ def calculate_self_energy_q(
         logger.log_memory_usage("Gchi0_q_full", gchi0_q, comm.size)
         giwk_full = giwk_full.cut_niv(config.box.niw_core + config.box.niv_full)
 
-        f_dc_loc = 2 * LocalFourPoint.load(os.path.join(config.output.output_path, "f_magn_loc.npy")).symmetrize_v_vp()
+        f_dc_loc = 2 * LocalFourPoint.load(os.path.join(config.output.output_path, "f_magn_loc.npy"))
         kernel = -calculate_sigma_dc_kernel(f_dc_loc, gchi0_q, u_loc)
         del f_dc_loc
         logger.info("Calculated double-counting kernel.")
@@ -498,12 +607,6 @@ def calculate_self_energy_q(
         config.sys.mu = comm.bcast(config.sys.mu)
         mu_history.append(config.sys.mu)
         logger.info(f"Updated mu from {old_mu} to {config.sys.mu}.")
-
-        if config.self_consistency.use_poly_fit and config.poly_fitting.do_poly_fitting:
-            sigma_new = sigma_new.fit_polynomial(
-                config.poly_fitting.n_fit, config.poly_fitting.o_fit, config.box.niv_core
-            )
-            logger.info(f"Fitted polynomial to sigma at iteration {current_iter}.")
 
         logger.info("Applying mixing strategy to the self-energy.")
         sigma_new = apply_mixing_strategy(sigma_new, sigma_old, sigma_dmft, current_iter)

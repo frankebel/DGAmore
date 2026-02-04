@@ -93,7 +93,7 @@ def test_symmetrizes_random_matrix_correctly():
     mat = np.random.rand(2, 2, 2, 2, 5, 3, 3)
     obj = LocalFourPoint(mat)
     result = obj.symmetrize_v_vp()
-    expected = 0.5 * (mat + np.swapaxes(mat, -1, -2))
+    expected = 0.5 * (mat + mat.swapaxes(0, 2).swapaxes(1, 3).swapaxes(-1, -2))
     assert np.allclose(result.mat, expected, rtol=1e-4)
 
 
@@ -968,6 +968,46 @@ def test_neg_dunder_calls_neg():
         result = -obj
         mock_neg.assert_called()
         assert np.allclose(result.mat, -obj.mat, rtol=1e-4)
+
+
+@pytest.mark.parametrize("num_vn_dimensions", [0, 1, 2])
+def test_creates_bosonic_dimension_when_not_present(num_vn_dimensions):
+    shape = (2,) * 4 + (4,) * num_vn_dimensions
+    mat = np.random.rand(*shape)
+    obj = LocalFourPoint(mat, num_vn_dimensions=num_vn_dimensions, num_wn_dimensions=0)
+    result = obj.create_wn_dimension()
+    assert result.num_wn_dimensions == 1
+    assert result.mat.shape == (2,) * 4 + (1,) + (4,) * num_vn_dimensions
+    assert np.allclose(result.mat, np.expand_dims(mat, axis=-(num_vn_dimensions + 1)), rtol=1e-4)
+
+
+@pytest.mark.parametrize("num_vn_dimensions", [0, 1, 2])
+def test_raises_error_when_bosonic_dimension_already_exists(num_vn_dimensions):
+    shape = (2,) * 4 + (4,) * num_vn_dimensions
+    mat = np.random.rand(*shape)
+    obj = LocalFourPoint(mat, num_vn_dimensions=num_vn_dimensions, num_wn_dimensions=1)
+    with pytest.raises(ValueError, match="Object already has bosonic frequency dimensions."):
+        obj.create_wn_dimension()
+
+
+@pytest.mark.parametrize("num_vn_dimensions", [0, 1, 2])
+def test_removes_bosonic_dimension_correctly(num_vn_dimensions):
+    shape = (2,) * 4 + (1,) + (4,) * num_vn_dimensions
+    mat = np.random.rand(*shape)
+    obj = LocalFourPoint(mat, num_vn_dimensions=num_vn_dimensions, num_wn_dimensions=1)
+    result = obj.take_first_wn()
+    assert result.num_wn_dimensions == 0
+    assert result.mat.shape == (2,) * 4 + (4,) * num_vn_dimensions
+    assert np.allclose(result.mat, np.take(mat, 0, axis=-(num_vn_dimensions + 1)), rtol=1e-4)
+
+
+@pytest.mark.parametrize("num_vn_dimensions", [0, 1, 2])
+def test_raises_error_when_no_bosonic_dimension(num_vn_dimensions):
+    shape = (2,) * 4 + (1,) + (4,) * num_vn_dimensions
+    mat = np.random.rand(*shape)
+    obj = LocalFourPoint(mat, num_vn_dimensions=num_vn_dimensions, num_wn_dimensions=0)
+    with pytest.raises(ValueError, match="Object must have exactly one bosonic frequency dimension."):
+        obj.take_first_wn()
 
 
 @pytest.mark.parametrize("niv_pad", [5, 10, 15])
