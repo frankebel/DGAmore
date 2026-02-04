@@ -51,11 +51,6 @@ eliashberg:
   # setting this to True will reduce the frequency box of the pairing vertex slightly due to an additional frequency shift that is necessary.
   subfolder_name: "Eliashberg" # name for the subfolder where certain outputs are generated
 
-poly_fitting:
-  do_poly_fitting: True # If True, the code will perform a polynomial fit of the non-local self-energy and the Green's function
-  n_fit: -1 # Number of Matsubara frequencies used for fit; default: -1 (niv_core + 40)
-  o_fit: 8 # Polynomial order used for the fit; default: 8
-
 self_energy_interpolation:
   do_interpolation: False # If True, the code will interpolate the self-energy to a different frequency and beta in each iteration
   target_beta: 1.0 # Target inverse temperature for the interpolation

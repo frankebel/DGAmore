@@ -123,17 +123,6 @@ class LocalFourPoint(LocalNPoint, IHaveChannel):
 
         return result
 
-    def symmetrize_v_vp(self):
-        """
-        Symmetrizes the vertex with respect to (v,v'). This is justified for SU(2) symmetric systems, see PhD Thesis
-        of Georg Rohringer p. 72
-        """
-        if self.num_vn_dimensions != 2:
-            raise ValueError("This method is only implemented for objects with 2 fermionic frequency dimensions.")
-
-        self.mat = 0.5 * (self.mat + np.swapaxes(self.mat, -1, -2))
-        return self
-
     def sum_over_orbitals(self, orbital_contraction: str = "abcd->ad"):
         """
         Sums over the given orbitals with the contraction given. Raises an error if the contraction is not valid.
@@ -573,7 +562,18 @@ class LocalFourPoint(LocalNPoint, IHaveChannel):
         copy.mat = np.einsum(permutation, copy.mat, optimize=True)
         return copy
 
-    def change_frequency_notation_ph_to_pp(self) -> "LocalFourPoint":
+    def symmetrize_v_vp(self):
+        """
+        Symmetrizes the vertex with respect to (v,v'). This is justified for SU(2) symmetric systems, see PhD Thesis
+        of Georg Rohringer p. 72
+        """
+        if self.num_vn_dimensions != 2:
+            raise ValueError("This method is only implemented for objects with 2 fermionic frequency dimensions.")
+
+        self.mat = 0.5 * (self.mat + np.swapaxes(self.permute_orbitals("abcd->cdab").mat, -1, -2))
+        return self
+
+    def change_frequency_notation_ph_to_pp_w0(self):
         r"""
         Changes the frequency notation of the object from ph to pp and returns a copy in half the niw range.
         The frequency shifts are :math:`(w,v_1,v_2) -> (w',v_1',v_2') = (v_1 + v_2 - w, v_1, v_2)`.
@@ -591,11 +591,40 @@ class LocalFourPoint(LocalNPoint, IHaveChannel):
         if copy.num_vn_dimensions == 1:
             copy = copy.extend_vn_to_diagonal()
 
-        iw_pp, iv_pp, ivp_pp = MFHelper.get_frequencies_for_ph_to_pp_channel_conversion(copy.niw, copy.niv)
-        copy.mat = copy.mat[..., iw_pp, iv_pp, ivp_pp]
-        copy.frequency_notation = FrequencyNotation.PP
+        iw_pp, iv_pp, ivp_pp = MFHelper.get_frequencies_for_ph_to_pp_w0_channel_conversion(copy.niw, copy.niv)
+        copy.mat = copy.mat[..., iw_pp, iv_pp, ivp_pp][..., None, :, :]
         copy.update_original_shape()
-        return copy.to_half_niw_range()
+        return copy.set_frequency_notation(FrequencyNotation.PP)
+
+    def create_wn_dimension(self):
+        """
+        Creates a bosonic frequency dimension for the LocalFourPoint object if it does not have one yet.
+        The new bosonic frequency dimension will have niw=0 only.
+        """
+        if self.num_wn_dimensions != 0:
+            raise ValueError("Object already has bosonic frequency dimensions.")
+
+        copy = deepcopy(self)
+        # insert bosonic axis immediately before the last vn axes
+        copy.mat = np.expand_dims(copy.mat, axis=-(copy.num_vn_dimensions + 1))
+        copy._num_wn_dimensions = 1
+        copy.update_original_shape()
+        return copy
+
+    def take_first_wn(self):
+        """
+        Selects the first entry in the wn dimension of the LocalFourPoint object, effectively removing the bosonic
+        frequency dimension.
+        """
+        if self.num_wn_dimensions != 1:
+            raise ValueError("Object must have exactly one bosonic frequency dimension.")
+
+        copy = deepcopy(self)
+        # select first entry of wn
+        copy.mat = np.take(copy.mat, 0, axis=-(copy.num_vn_dimensions + 1))
+        copy._num_wn_dimensions = 0
+        copy.update_original_shape()
+        return copy
 
     def pad_with_u(self, u: LocalInteraction, niv_pad: int):
         """

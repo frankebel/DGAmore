@@ -58,30 +58,61 @@ class BubbleGenerator:
         )
 
     @staticmethod
-    def create_generalized_chi0_pp(g_loc: GreensFunction, niw_pp: int, niv_pp: int) -> LocalFourPoint:
+    def create_generalized_chi0_q_fast(giwk: GreensFunction, niw: int, niv: int, q_list: np.ndarray) -> FourPoint:
+        r"""
+        Returns χ₀^{qν}_{abcd} = -β ∑ₖ G^{k}_{ad} G^{k-q}_{cb}
+        """
+
+        wn = MFHelper.wn(niw, return_only_positive=True)
+        nb = giwk.n_bands
+        nq = len(q_list)
+
+        gchi0_q = np.zeros(
+            (nq, nb, nb, nb, nb, len(wn), 2 * niv),
+            dtype=giwk.mat.dtype,
+        )
+
+        g_left = giwk.cut_niv(niv + niw).mat
+        g_right = giwk.transpose_orbitals().cut_niv(niv + niw).mat
+        iv0 = niv + niw
+        g_left = g_left[..., iv0 - niv : iv0 + niv]
+
+        path, _ = np.einsum_path("xyzadv,xyzcbv->abcdv", g_left, g_left, optimize="optimal")
+
+        for iq, q in enumerate(q_list):
+            g_r = g_right
+            g_r = np.take(g_r, np.arange(g_r.shape[0]) - q[0], axis=0, mode="wrap")
+            g_r = np.take(g_r, np.arange(g_r.shape[1]) - q[1], axis=1, mode="wrap")
+            g_r = np.take(g_r, np.arange(g_r.shape[2]) - q[2], axis=2, mode="wrap")
+
+            for iw, wn_i in enumerate(wn):
+                s = iv0 - niv - wn_i
+                e = iv0 + niv - wn_i
+
+                # Guaranteed: e - s == 2*niv
+                gchi0_q[iq, ..., iw, :] = np.einsum("xyzadv,xyzcbv->abcdv", g_left, g_r[..., s:e], optimize=path)
+
+        gchi0_q *= -config.sys.beta / config.lattice.q_grid.nk_tot
+        return FourPoint(
+            gchi0_q, SpinChannel.NONE, config.lattice.nq, 1, 1, full_niw_range=False, has_compressed_q_dimension=True
+        )
+
+    @staticmethod
+    def create_generalized_chi0_pp_w0(g_loc: GreensFunction, niv_pp: int) -> LocalFourPoint:
         r"""
         Returns the particle-particle bare bubble susceptibility from the Green's function. Returns the object with :math:`\omega = 0`.
-        We have :math:`\chi_{0;abcd}^{\vec{k}\nu} = G_{ad}^k * G_{cb}^{\omega-k}`. Attention:
-        no factor of :math:`\beta` is included here.
+        We have :math:`\chi_{0;abcd}^{\vec{k}\nu} = -\beta * G_{ad}^k * G_{cb}^{\omega-k}`.
         """
         g = g_loc.cut_niv(niv_pp)
-        eye_bands = np.eye(g.current_shape[0])
-        wn = MFHelper.wn(niw_pp, return_only_positive=True)
-        vn = MFHelper.vn(niv_pp)
-        g_left_mat = (
-            g_loc.mat[:, None, None, :, None, g_loc.niv - niv_pp : g_loc.niv + niv_pp]
-            * eye_bands[None, :, :, None, None, None]
-        )
-        g_right_mat = (
-            g_loc.transpose_orbitals().mat[None, :, :, None, g_loc.niv + wn[:, None] - vn[None, :]]
-            * eye_bands[:, None, None, :, None, None]
+        eye_bands = np.eye(config.sys.n_bands)
+        gchi0_pp_w0 = (g.mat[:, None, None, :, :] * eye_bands[None, :, :, None, None]) * (
+            np.conj(g.mat)[None, :, :, None, :] * eye_bands[:, None, None, :, None]
         )
         return LocalFourPoint(
-            -g_left_mat * g_right_mat,
+            -config.sys.beta * gchi0_pp_w0[..., None, :],
             SpinChannel.NONE,
             1,
             1,
-            full_niw_range=False,
             frequency_notation=FrequencyNotation.PP,
         )
 
@@ -97,4 +128,12 @@ class BubbleGenerator:
         gchi0_q = (g.mat[:, :, None, None, :, :] * eye_bands[None, None, :, :, None, None]) * (
             np.conj(g.mat)[:, None, :, :, None, :] * eye_bands[None, :, None, None, :, None]
         )
-        return FourPoint(gchi0_q, SpinChannel.NONE, config.lattice.nq, 0, 1, has_compressed_q_dimension=True)
+        return FourPoint(
+            gchi0_q,
+            SpinChannel.NONE,
+            config.lattice.nq,
+            0,
+            1,
+            has_compressed_q_dimension=True,
+            frequency_notation=FrequencyNotation.PP,
+        )

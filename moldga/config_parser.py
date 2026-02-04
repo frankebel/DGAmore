@@ -59,7 +59,6 @@ class ConfigParser:
         config.self_consistency = self._build_self_consistency_config(conf_file)
         config.eliashberg = self._build_eliashberg_config(conf_file)
         config.lambda_correction = self._build_lambda_correction_config(conf_file)
-        config.poly_fitting = self._build_poly_fitting_config(conf_file)
         config.box = self._build_box_config(conf_file)
         config.lattice = self._build_lattice_config(conf_file)
         config.self_energy_interpolation = self._build_self_energy_interpolation_config(conf_file)
@@ -162,7 +161,6 @@ class ConfigParser:
         conf.mixing = self._try_parse(section, "mixing", 0.2)
         conf.mixing_strategy = self._try_parse(section, "mixing_strategy", "linear")
         conf.mixing_history_length = self._try_parse(section, "mixing_history_length", 3)
-        conf.use_poly_fit = self._try_parse(section, "use_poly_fit", False)
         conf.previous_sc_path = self._try_parse(section, "previous_sc_path", "./")
         conf.use_lambda_correction = self._try_parse(section, "use_lambda_correction", False)
         conf.restrict_chi_phys = self._try_parse(section, "restrict_chi_phys", False)
@@ -196,29 +194,16 @@ class ConfigParser:
 
         return conf
 
-    def _build_poly_fitting_config(self, conf_file) -> PolyFittingConfig:
-        """
-        Builds the poly fitting config from the config file. Mainly concerned with the polynomial fitting of the self-energy.
-        """
-        conf = PolyFittingConfig()
-        poly_fitting_section = conf_file["poly_fitting"]
-
-        conf.do_poly_fitting = self._try_parse(poly_fitting_section, "do_poly_fitting", True)
-        conf.n_fit = self._try_parse(poly_fitting_section, "n_fit", 4)
-        conf.o_fit = self._try_parse(poly_fitting_section, "o_fit", 3)
-
-        return conf
-
     def _build_self_energy_interpolation_config(self, conf_file):
         """
         Builds the self-energy interpolation config from the config file.
         """
         conf = SelfEnergyInterpolationConfig()
-        interpolation_section = conf_file["self_energy_interpolation"]
+        section = conf_file["self_energy_interpolation"]
 
-        conf.do_interpolation = self._try_parse(interpolation_section, "do_interpolation", False)
-        conf.beta_target = self._try_parse(interpolation_section, "beta_target", 1.0)
-        conf.niv_target = self._try_parse(interpolation_section, "niv_target", 10)
+        conf.do_interpolation = self._try_parse(section, "do_interpolation", False)
+        conf.beta_target = self._try_parse(section, "beta_target", 1.0)
+        conf.niv_target = self._try_parse(section, "niv_target", 10)
 
         return conf
 
