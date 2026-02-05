@@ -1,12 +1,15 @@
 import glob
 import os
 import re
+from copy import deepcopy
 
 import mpi4py.MPI as MPI
 import numpy as np
+from scipy import optimize as opt
 
 import moldga.config as config
 import moldga.lambda_correction as lc
+from moldga.brillouin_zone import KGrid
 from moldga.bubble_gen import BubbleGenerator
 from moldga.four_point import FourPoint
 from moldga.greens_function import GreensFunction, update_mu
@@ -152,7 +155,7 @@ def calculate_sigma_dc_kernel(f_dc_loc: LocalFourPoint, gchi0_q: FourPoint, u_lo
 
 def calculate_kernel_r_q(
     vrg_q_r: FourPoint, gchi_aux_q_r_sum: FourPoint, v_nonloc: Interaction, u_loc: LocalInteraction
-):
+) -> FourPoint:
     r"""
     Returns the kernel for the self-energy calculation minus 2/3 times the identity if the channel is the magnetic
     channel (due to the extra factor of :math:`U_{ah21}` in Eq. (4.29) in my master's thesis).
@@ -165,6 +168,45 @@ def calculate_kernel_r_q(
         kernel -= 2.0 / 3.0 * FourPoint.identity_like(kernel)
 
     return u_r @ kernel
+
+
+def perform_ornstein_zernicke_fit(chi_phys_q_r: FourPoint, irrk_inv: np.ndarray) -> None:
+    def oz_spin_w0(q_grid: KGrid, a: float, xi: float):
+        qx = qy = np.pi
+        qz = 0
+        oz = a / (
+            xi ** (-2)
+            + (q_grid.kx[:, None, None] - qx) ** 2
+            + (q_grid.ky[None, :, None] - qy) ** 2
+            + (q_grid.kz[None, None, :] - qz) ** 2
+        )
+        return oz.flatten()
+
+    def fit_oz_spin(q_grid: KGrid, mat: np.ndarray):
+        initial_guess = (mat.max(), 2.0)
+        return opt.curve_fit(oz_spin_w0, q_grid, mat, p0=initial_guess)
+
+    chi = deepcopy(chi_phys_q_r)
+    chi_mat = chi.map_to_full_bz(irrk_inv).to_half_niw_range().take_first_wn().mat.real
+    orb_shape = (config.sys.n_bands,) * 4
+    oz_coeffs = np.zeros(orb_shape + (2,), dtype=float)
+
+    for idx in np.ndindex(orb_shape):
+        mat_slice = chi_mat[..., idx[0], idx[1], idx[2], idx[3]].flatten()
+        try:
+            coeffs, _ = fit_oz_spin(config.lattice.q_grid, mat_slice)
+        except (ValueError, RuntimeError, opt.OptimizeWarning):
+            config.logger.warning(f"OZ fit did not converge for orbitals {idx}. Using [-1, -1].")
+            coeffs = [-1.0, -1.0]
+        oz_coeffs[idx] = coeffs
+
+    rows = []
+    for idx in np.ndindex(orb_shape):
+        rows.append([*idx, *oz_coeffs[idx]])
+
+    data_to_save = np.array(rows, dtype=float)
+    path = os.path.join(config.output.output_path, f"oz_coeff.txt")
+    np.savetxt(path, data_to_save, delimiter=",", fmt="%d %d %d %d %.9f %.9f", header="o1 o2 o3 o4 A xi")
 
 
 def calculate_sigma_kernel_r_q(
@@ -223,6 +265,11 @@ def calculate_sigma_kernel_r_q(
             if config.lambda_correction.perform_lambda_correction:
                 chi_phys_q_r = perform_lambda_correction(chi_phys_q_r)
             chi_phys_q_r.save(name=f"chi_phys_q_{chi_phys_q_r.channel.value}", output_dir=config.output.output_path)
+
+            # perform Ornstein-Zernicke fit
+            if chi_phys_q_r.channel == SpinChannel.MAGN:
+                perform_ornstein_zernicke_fit(chi_phys_q_r, irrk_inv=config.lattice.q_grid.irrk_inv)
+
         chi_phys_q_r.mat = mpi_dist_irrq.scatter(chi_phys_q_r.mat)
         logger.info(f"Saved physical susceptibility ({chi_phys_q_r.channel.value}) to file.")
 
