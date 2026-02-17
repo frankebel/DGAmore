@@ -102,8 +102,22 @@ def load_from_w2dyn_file_and_update_config() -> tuple[GreensFunction, SelfEnergy
     if not os.path.exists(config.output.eliashberg_path) and config.eliashberg.perform_eliashberg:
         os.makedirs(config.output.eliashberg_path)
 
-    g2_dens = update_g2_from_dmft(g2_dens)
-    g2_magn = update_g2_from_dmft(g2_magn)
+    g2_dens = g2_dens.cut_niw_and_niv(config.box.niw_core, config.box.niv_core)
+    g2_magn = g2_magn.cut_niw_and_niv(config.box.niw_core, config.box.niv_core)
+
+    if config.dmft.symmetrize_orbitals:
+        g2_dens = g2_dens.symmetrize_orbitals(config.dmft.symmetrize_orbitals)
+        g2_magn = g2_magn.symmetrize_orbitals(config.dmft.symmetrize_orbitals)
+        g_dmft = g_dmft.symmetrize_orbitals(config.dmft.symmetrize_orbitals)
+        sigma_dmft = sigma_dmft.symmetrize_orbitals(config.dmft.symmetrize_orbitals)
+        config.logger.info(
+            f"Symmetrized G2 with respect to orbitals {', '.join(str(o) for o in config.dmft.symmetrize_orbitals)}."
+        )
+
+    if config.dmft.do_sym_v_vp:
+        g2_dens = g2_dens.symmetrize_v_vp()
+        g2_magn = g2_magn.symmetrize_v_vp()
+        config.logger.info(f"Symmetrized G2 with respect to v and v'.")
 
     return g_dmft, sigma_dmft, g2_dens, g2_magn
 
@@ -135,18 +149,6 @@ def update_frequency_boxes(niw: int, niv: int) -> None:
         )
 
     config.box.niv_full = config.box.niv_core + config.box.niv_shell
-
-
-def update_g2_from_dmft(g2: LocalFourPoint) -> LocalFourPoint:
-    """
-    Updates the four-point object based on the available frequencies in the DMFT four-point object. Also symmetrizes
-    with respect to v and v' if specified in the config file.
-    """
-    g2 = g2.cut_niw_and_niv(config.box.niw_core, config.box.niv_core)
-    if config.dmft.do_sym_v_vp:
-        g2 = g2.symmetrize_v_vp()
-        config.logger.info(f"Symmetrized G2 ({g2.channel.value}) with respect to v and v'.")
-    return g2
 
 
 def set_hamiltonian(er_type: str, er_input: str | list, int_type: str, int_input: str | list) -> Hamiltonian:

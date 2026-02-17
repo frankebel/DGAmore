@@ -13,3 +13,12 @@ ignore:
   - "moldga/plotting.py"
   - "moldga/config_parser.py"
   - "moldga/symmetrize_new.py"
+
+coverage:
+  status:
+    project:
+      default:
+        patch: 85%
+        threshold: 0%
+        base: auto
+        if_not_found: failure

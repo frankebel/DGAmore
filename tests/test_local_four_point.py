@@ -1,4 +1,4 @@
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 
 import pytest
 
@@ -1041,3 +1041,60 @@ def test_does_not_pad_when_niv_pad_is_less_or_equal(niv):
     result = obj.pad_with_u(u, niv)
     assert np.allclose(result.mat, mat, rtol=1e-4)
     assert result.mat.shape == mat.shape
+
+
+def test_symmetrize_orbitals_already_symmetrized():
+    obj = LocalFourPoint(np.zeros((2, 2, 2, 2)))
+
+    obj.is_orbitally_symmetrized = MagicMock(return_value=True)
+    obj._symmetrize_orbitals = MagicMock()
+
+    orbitals = [1, 2, 3]
+
+    result = obj.symmetrize_orbitals(orbitals)
+
+    assert result is obj
+    obj.is_orbitally_symmetrized.assert_called_once_with(orbitals)
+    obj._symmetrize_orbitals.assert_not_called()
+
+
+def test_symmetrize_orbitals_calls_private_method():
+    obj = LocalFourPoint(np.zeros((2, 2, 2, 2)))
+
+    obj.is_orbitally_symmetrized = MagicMock(return_value=False)
+    obj._symmetrize_orbitals = MagicMock(return_value="symmetrized_obj")
+
+    orbitals = [1, 3]
+
+    result = obj.symmetrize_orbitals(orbitals)
+
+    obj.is_orbitally_symmetrized.assert_called_once_with(orbitals)
+    obj._symmetrize_orbitals.assert_called_once_with(orbitals, (0, 1, 2, 3))
+    assert result == "symmetrized_obj"
+
+
+def test_is_orbitally_symmetrized_delegates():
+    obj = LocalFourPoint(np.zeros((2, 2, 2, 2)))
+
+    obj._is_orbitally_symmetrized = MagicMock(return_value=True)
+
+    orbitals = np.array([1, 2])
+
+    result = obj.is_orbitally_symmetrized(orbitals)
+
+    obj._is_orbitally_symmetrized.assert_called_once_with(orbitals, (0, 1, 2, 3))
+    assert result is True
+
+
+def test_symmetrize_orbitals_empty_list():
+    obj = LocalFourPoint(np.zeros((2, 2, 2, 2)))
+
+    obj.is_orbitally_symmetrized = MagicMock(return_value=True)
+    obj._symmetrize_orbitals = MagicMock()
+
+    orbitals = []
+
+    result = obj.symmetrize_orbitals(orbitals)
+
+    assert result is obj
+    obj._symmetrize_orbitals.assert_not_called()

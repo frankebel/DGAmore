@@ -65,8 +65,8 @@ def execute_dga_routine():
     g_dmft = comm.bcast(g_dmft, root=0)
     sigma_dmft = comm.bcast(sigma_dmft, root=0)
 
-    logger.log_memory_usage("giwk & siwk", g_dmft, 2 * comm.size)
-    logger.log_memory_usage("g2_dens & g2_magn", g2_dens, 2 * comm.size)
+    logger.log_memory_usage("g_dmft & sigma_dmft", g_dmft, 2 * comm.size)
+    logger.log_memory_usage("g2_dens & g2_magn", g2_dens, 2)
 
     if config.output.save_quantities and comm.rank == 0:
         sigma_dmft.save(name="sigma_dmft", output_dir=config.output.output_path)
@@ -75,7 +75,7 @@ def execute_dga_routine():
 
     if config.output.do_plotting and comm.rank == 0:
         for g2, name in [(g2_dens, "G2_dens"), (g2_magn, "G2_magn")]:
-            for omega in [0, -10, 10]:
+            for omega in ([0, -10, 10] if config.box.niw_core > 10 else [0]):
                 plotting.plot_nu_nup(g2, omega=omega, name=name, output_dir=config.output.plotting_path)
         logger.info("Plotted g2 (dens) and g2 (magn).")
 

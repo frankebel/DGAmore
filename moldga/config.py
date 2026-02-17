@@ -125,6 +125,7 @@ class DmftConfig:
         self.fname_1p: str = "1p-data.hdf5"
         self.fname_2p: str = "g4iw_sym.hdf5"
         self.do_sym_v_vp: bool = True
+        self.symmetrize_orbitals: list = []
 
 
 class SystemConfig:

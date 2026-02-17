@@ -139,9 +139,7 @@ def create_full_vertex_q_r_pp_w0(
 
 
 # --- Local particle-particle reducible diagrams (w=0) ---
-def create_local_ud_diagrams_pp_w0(
-    g_loc: GreensFunction, niv_pp: int
-) -> Tuple[LocalFourPoint, LocalFourPoint, LocalFourPoint]:
+def create_local_ud_diagrams_pp_w0(g_loc: GreensFunction) -> Tuple[LocalFourPoint, LocalFourPoint, LocalFourPoint]:
     r"""
     Creates the local particle-particle reducible diagrams for :math:`\omega=0`.
     """
@@ -168,6 +166,7 @@ def create_local_ud_diagrams_pp_w0(
     f_magn_loc = LocalFourPoint.load(os.path.join(config.output.output_path, f"f_magn_loc.npy"), SpinChannel.MAGN)
     f_ud_loc = 0.5 * (f_dens_loc - f_magn_loc).set_channel(SpinChannel.UD)
     f_ud_loc_pp_w0 = f_ud_loc.change_frequency_notation_ph_to_pp_w0()
+
     del f_dens_loc, f_magn_loc, f_ud_loc
 
     phi_ud_loc_pp_w0 = f_ud_loc_pp_w0 - gamma_ud_loc_pp_w0
@@ -370,7 +369,7 @@ def solve(
         logger.info("Created the bare bubble susceptibility in pp notation.")
 
         if config.eliashberg.include_local_part:
-            f_ud_loc_pp_w0, gamma_ud_loc_pp_w0, phi_ud_loc_pp_w0 = create_local_ud_diagrams_pp_w0(g_loc, niv_pp)
+            f_ud_loc_pp_w0, gamma_ud_loc_pp_w0, phi_ud_loc_pp_w0 = create_local_ud_diagrams_pp_w0(g_loc)
 
             if config.output.save_quantities:
                 f_ud_loc_pp_w0.save(output_dir=config.output.eliashberg_path, name="f_ud_loc_pp_w0")
@@ -392,8 +391,8 @@ def solve(
             f_ud_loc_transf_w0 = transform_vertex_loc_frequencies_w0(f_ud_loc, niv_pp)
             del f_dens_loc, f_magn_loc, f_ud_loc
 
-            gamma_sing_pp -= f_ud_loc_transf_w0 + phi_ud_loc_pp_w0
-            gamma_trip_pp -= f_ud_loc_transf_w0 + phi_ud_loc_pp_w0
+            gamma_sing_pp += f_ud_loc_transf_w0 + phi_ud_loc_pp_w0
+            gamma_trip_pp += f_ud_loc_transf_w0 + phi_ud_loc_pp_w0
             del phi_ud_loc_pp_w0, f_ud_loc_transf_w0
 
         if config.eliashberg.save_pairing_vertex:

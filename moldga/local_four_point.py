@@ -562,6 +562,23 @@ class LocalFourPoint(LocalNPoint, IHaveChannel):
         copy.mat = np.einsum(permutation, copy.mat, optimize=True)
         return copy
 
+    def symmetrize_orbitals(self, orbitals: list | np.ndarray) -> "LocalFourPoint":
+        """
+        Symmetrizes the LocalFourPoint object with respect to the orbitals given in the list. The minimum value that
+        should be entered inside "orbs_list" is 1. and the max is the number of bands. For example, if the object has
+        3 bands and we want to symmetrize with respect to the first and third orbital, we can enter "orbitals=[1,3]".
+        The symmetrization is done by permuting the orbitals in all possible ways and averaging over the results.
+        """
+        if self.is_orbitally_symmetrized(orbitals):
+            return self
+        return self._symmetrize_orbitals(orbitals, (0, 1, 2, 3))
+
+    def is_orbitally_symmetrized(self, orbitals: list | np.ndarray) -> bool:
+        """
+        Check whether the LocalFourPoint object is orbitally symmetrized with respect to the orbitals given.
+        """
+        return self._is_orbitally_symmetrized(orbitals, (0, 1, 2, 3))
+
     def symmetrize_v_vp(self):
         """
         Symmetrizes the vertex with respect to (v,v'). This is justified for SU(2) symmetric systems, see PhD Thesis

@@ -1,6 +1,9 @@
+from unittest.mock import MagicMock
+
 import numpy as np
 import pytest
 
+from moldga import config
 from moldga.matsubara_frequencies import MFHelper
 from moldga.self_energy import SelfEnergy
 from moldga.config import sys
@@ -313,3 +316,73 @@ def test_handles_edge_case_with_identical_asymptotic_and_matrix():
     self_energy._get_asympt = lambda niv, n_min: SelfEnergy(self_energy.mat, nk=nk)
     niv_core = self_energy._estimate_niv_core()
     assert niv_core == 20
+
+
+@pytest.fixture
+def self_energy():
+    mat = np.zeros((1, 1, 1, 2, 2, 20))
+    config.sys.beta = 1.0
+    self_energy = SelfEnergy(mat, nk=(1, 1, 1), has_compressed_q_dimension=False)
+
+    self_energy._symmetrize_orbitals = MagicMock()
+    self_energy._is_orbitally_symmetrized = MagicMock()
+    self_energy.fit_smom = MagicMock()
+
+    return self_energy
+
+
+def test_symmetrize_orbitals_returns_self_if_already_symmetrized(self_energy):
+    orbitals = [1, 2]
+    self_energy._is_orbitally_symmetrized.return_value = True
+
+    result = self_energy.symmetrize_orbitals(orbitals)
+
+    assert result is self_energy
+    self_energy._is_orbitally_symmetrized.assert_called_once_with(orbitals, (3, 4))
+    self_energy._symmetrize_orbitals.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "shape, expected_axes, compressed",
+    [
+        ((2, 2, 10), (0, 1), False),  # [o1,o2,v]
+        ((3, 2, 2, 10), (1, 2), True),  # [k,o1,o2,v]
+        ((2, 2, 2, 2, 2, 10), (3, 4), False),  # [kx,ky,kz,o1,o2,v]
+    ],
+)
+def test_executes_symmetrization_if_not_already_symmetrized(shape, expected_axes, compressed, self_energy):
+    se = self_energy
+    se.mat = np.zeros(shape)
+    se._has_compressed_q_dimension = compressed
+
+    orbitals = [1, 2]
+    se._is_orbitally_symmetrized.return_value = False
+
+    assert se._get_orbital_axes() == expected_axes
+    _ = self_energy.symmetrize_orbitals(orbitals)
+
+    se._is_orbitally_symmetrized.assert_called_once_with(orbitals, expected_axes)
+    se._symmetrize_orbitals.assert_called_once_with(orbitals, expected_axes)
+
+
+@pytest.mark.parametrize(
+    "shape, expected_axes, compressed",
+    [
+        ((2, 2, 10), (0, 1), False),  # [o1,o2,v]
+        ((3, 2, 2, 10), (1, 2), True),  # [k,o1,o2,v]
+        ((2, 2, 2, 2, 2, 10), (3, 4), False),  # [kx,ky,kz,o1,o2,v]
+    ],
+)
+def test_does_not_executes_symmetrization_if_already_symmetrized(shape, expected_axes, compressed, self_energy):
+    se = self_energy
+    se.mat = np.zeros(shape)
+    se._has_compressed_q_dimension = compressed
+
+    orbitals = [1, 2]
+    se._is_orbitally_symmetrized.return_value = True
+
+    _ = self_energy.symmetrize_orbitals(orbitals)
+    assert se._get_orbital_axes() == expected_axes
+
+    se._is_orbitally_symmetrized.assert_called_once_with(orbitals, expected_axes)
+    se._symmetrize_orbitals.assert_not_called()

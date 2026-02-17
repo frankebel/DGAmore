@@ -231,7 +231,9 @@ def calculate_sigma_kernel_r_q(
 
     gchi_aux_q_r_sum = gchi_aux_q_r.sum_over_vn(config.sys.beta, axis=(-1,))
     del gchi_aux_q_r
+
     vrg_q_r = create_vrg_r_q(gchi_aux_q_r_sum, gchi0_q_inv)
+
     logger.info(f"Non-local three-leg vertex gamma^wv ({vrg_q_r.channel.value}) done.")
     logger.log_memory_usage(f"Three-leg vertex ({vrg_q_r.channel.value})", vrg_q_r, mpi_dist_irrq.comm.size)
 
@@ -247,6 +249,7 @@ def calculate_sigma_kernel_r_q(
     chi_phys_q_r = create_generalized_chi_q_with_shell_correction(
         chi_phys_q_r, gchi0_q_full_sum, gchi0_q_core_sum, u_loc, v_nonloc
     )
+
     logger.info(f"Updated non-local susceptibility chi^q ({chi_phys_q_r.channel.value}) with asymptotic correction.")
 
     if config.self_consistency.restrict_chi_phys:
