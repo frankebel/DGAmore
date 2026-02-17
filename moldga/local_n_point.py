@@ -1,3 +1,4 @@
+import itertools
 import os
 
 from moldga.n_point_base import *
@@ -252,6 +253,190 @@ class LocalNPoint(IHaveMat):
         np.save(os.path.join(output_dir, f"{name}.npy"), self.to_half_niw_range().mat, allow_pickle=False)
         if is_self_full_niw_range:
             self.to_full_niw_range()
+
+    def _symmetrize_orbitals(self, orbitals: list | np.ndarray, orbital_axes: tuple):
+        """
+        Enforce orbital degeneracy inside given groups along specified orbital_axes.
+
+        Each pattern is averaged independently:
+            1) [i,i,i,i]
+            2) [i,i,j,j]
+            3) [i,j,j,i]
+            4) [i,j,i,j]
+            5) 3–1 patterns [i,j,j,j]
+        """
+        nb = self.current_shape[orbital_axes[0]]
+        mat_orig = self.mat.copy()
+
+        # Normalize input: single group -> list of lists
+        if all(isinstance(x, int) for x in orbitals):
+            orbitals = [orbitals]
+
+        for group in orbitals:
+            if len(group) <= 1:
+                continue
+
+            group = np.array(group)
+            if np.any(group < 1) or np.any(group > nb):
+                raise ValueError(f"Invalid orbitals {group}. Orbitals should be between 1 and {nb}.")
+
+            group -= 1  # zero-based
+
+            def average_patterns(patterns):
+                if not patterns:
+                    return
+
+                indexers = []
+                for pattern in patterns:
+                    if len(pattern) != len(orbital_axes):
+                        raise ValueError(
+                            f"Pattern length {len(pattern)} does not match number of orbital axes {len(orbital_axes)}."
+                        )
+                    idx = [slice(None)] * mat_orig.ndim
+                    for ax, val in zip(orbital_axes, pattern):
+                        idx[ax] = val
+                    indexers.append(tuple(idx))
+
+                avg = sum(mat_orig[idx] for idx in indexers) / len(indexers)
+
+                for idx in indexers:
+                    self.mat[idx] = avg
+
+            if len(orbital_axes) == 4:
+                # 1) diagonals [i,i,i,i]
+                patterns = [[i, i, i, i] for i in group]
+                average_patterns(patterns)
+
+                # 2) double-diagonal [i,i,j,j]
+                patterns = [[i, i, j, j] for i in group for j in group if i != j]
+                average_patterns(patterns)
+
+                # 3) exchange pattern [i,j,j,i]
+                patterns = [[i, j, j, i] for i in group for j in group if i != j]
+                average_patterns(patterns)
+
+                # 4) alternating pattern [i,j,i,j]
+                patterns = [[i, j, i, j] for i in group for j in group if i != j]
+                average_patterns(patterns)
+
+                # 5) 3–1 patterns [i,j,j,j] and permutations
+                patterns = set()
+                for i in group:
+                    for j in group:
+                        if i == j:
+                            continue
+                        base = [i, j, j, j]
+                        for perm in itertools.permutations(base):
+                            patterns.add(tuple(perm))
+                patterns = [list(p) for p in patterns]
+                average_patterns(patterns)
+
+            elif len(orbital_axes) == 2:
+                # 1) diagonals [i,i]
+                patterns = [[i, i] for i in group]
+                average_patterns(patterns)
+
+                # 2) exchange pattern [i,j]
+                patterns = [[i, j] for i in group for j in group if i != j]
+                average_patterns(patterns)
+            else:
+                raise ValueError("Invalid number of orbital axes. Only 2 or 4 are supported.")
+
+        return self
+
+    def _is_orbitally_symmetrized(self, orbitals: list | np.ndarray, orbital_axes: tuple) -> bool:
+        """
+        Check whether the tensor is orbitally symmetrized within given groups along specified orbital_axes.
+
+        Verifies degeneracy of:
+
+            1) [i,i,i,i]
+            2) [i,i,j,j]
+            3) [i,j,j,i]
+            4) [i,j,i,j]
+            5) 3–1 patterns [i,j,j,j]
+        """
+        nb = self.current_shape[orbital_axes[0]]
+
+        if all(isinstance(x, int) for x in orbitals):
+            orbitals = [orbitals]
+
+        for group in orbitals:
+            if len(group) <= 1:
+                continue
+
+            group = np.array(group)
+            if np.any(group < 1) or np.any(group > nb):
+                raise ValueError(f"Invalid orbitals {group}. Orbitals should be between 1 and {nb}.")
+
+            group -= 1  # zero-based
+
+            def check_patterns(patterns):
+                if not patterns:
+                    return True
+
+                values = []
+                for pattern in patterns:
+                    if len(pattern) != len(orbital_axes):
+                        raise ValueError(
+                            f"Pattern length {len(pattern)} does not match number of orbital axes {len(orbital_axes)}."
+                        )
+                    idx = [slice(None)] * self.mat.ndim
+                    for ax, val in zip(orbital_axes, pattern):
+                        idx[ax] = val
+                    values.append(self.mat[tuple(idx)])
+
+                ref = values[0]
+                return all(np.array_equal(v, ref) for v in values)
+
+            if len(orbital_axes) == 4:
+                # 1) diagonals [i,i,i,i]
+                patterns = [[i, i, i, i] for i in group]
+                if not check_patterns(patterns):
+                    return False
+
+                # 2) double-diagonal [i,i,j,j]
+                patterns = [[i, i, j, j] for i in group for j in group if i != j]
+                if not check_patterns(patterns):
+                    return False
+
+                # 3) exchange pattern [i,j,j,i]
+                patterns = [[i, j, j, i] for i in group for j in group if i != j]
+                if not check_patterns(patterns):
+                    return False
+
+                # 4) alternating pattern [i,j,i,j]
+                patterns = [[i, j, i, j] for i in group for j in group if i != j]
+                if not check_patterns(patterns):
+                    return False
+
+                # 5) 3–1 patterns [i,j,j,j] and permutations
+                patterns = set()
+                for i in group:
+                    for j in group:
+                        if i == j:
+                            continue
+                        base = [i, j, j, j]
+                        for perm in itertools.permutations(base):
+                            patterns.add(tuple(perm))
+                patterns = [list(p) for p in patterns]
+                if not check_patterns(patterns):
+                    return False
+
+            elif len(orbital_axes) == 2:
+                # 1) diagonals [i,i]
+                patterns = [[i, i] for i in group]
+                if not check_patterns(patterns):
+                    return False
+
+                # 2) exchange pattern [i,j]
+                patterns = [[i, j] for i in group for j in group if i != j]
+                if not check_patterns(patterns):
+                    return False
+            else:
+                raise ValueError("Invalid number of orbital axes. Only 2 or 4 are supported.")
+
+        return True
 
     def _align_frequency_dimensions_for_operation(self, other: "LocalNPoint"):
         """

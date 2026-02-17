@@ -1,3 +1,4 @@
+import itertools
 import itertools as it
 from copy import deepcopy
 
@@ -201,6 +202,25 @@ class SelfEnergy(IAmNonLocal, LocalNPoint):
 
         return SelfEnergy(poly_mat, copy.nq, copy.full_niv_range, copy.has_compressed_q_dimension, False)
 
+    def symmetrize_orbitals(self, orbitals: list | np.ndarray) -> "SelfEnergy":
+        r"""
+        Symmetrizes the LocalNPoint object with respect to the orbitals given in the list. The minimum value that
+        should be entered inside "orbs_list" is 1. and the max is the number of bands. For example, if the object has
+        3 bands and we want to symmetrize with respect to the first and third orbital, we can enter "orbitals=[1,3]".
+        The symmetrization is done by permuting the orbitals in all possible ways and averaging over the results.
+        """
+        orbital_axes = self._get_orbital_axes()
+        if self.is_orbitally_symmetrized(orbitals):
+            return self
+        return self._symmetrize_orbitals(orbitals, orbital_axes)
+
+    def is_orbitally_symmetrized(self, orbitals: list | np.ndarray) -> bool:
+        """
+        Check whether the LocalFourPoint object is orbitally symmetrized with respect to the orbitals given.
+        """
+        orbital_axes = self._get_orbital_axes()
+        return self._is_orbitally_symmetrized(orbitals, orbital_axes)
+
     def interpolate(self, beta_source: float, beta_target: float, niv_target: int) -> "SelfEnergy":
         """
         Linearly interpolate the self-energy from beta_source to beta_target,
@@ -263,3 +283,17 @@ class SelfEnergy(IAmNonLocal, LocalNPoint):
             self.nq
         )[..., None, None, None]
         return SelfEnergy(asympt, self.nq)
+
+    def _get_orbital_axes(self) -> tuple[int, int]:
+        """
+        Get the axes corresponding to the orbitals.
+        """
+        if len(self.current_shape) == 3:  # [o1,o2,v]
+            orbital_axes = (0, 1)
+        elif len(self.current_shape) == 4:  # [k,o1,o2,v]
+            orbital_axes = (1, 2)
+        elif len(self.current_shape) == 6:  # [kx,ky,kz,o1,o2,v]
+            orbital_axes = (3, 4)
+        else:
+            raise ValueError("The object has to have either 3, 4 or 6 dimensions.")
+        return orbital_axes

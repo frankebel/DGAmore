@@ -121,6 +121,7 @@ class ConfigParser:
         conf.fname_1p = self._try_parse(section, "fname_1p", "1p-data.hdf5")
         conf.fname_2p = self._try_parse(section, "fname_2p", "g4iw_sym.hdf5")
         conf.do_sym_v_vp = self._try_parse(section, "do_sym_v_vp", True)
+        conf.symmetrize_orbitals = self._try_parse(section, "symmetrize_orbitals", [])
 
         return conf
 

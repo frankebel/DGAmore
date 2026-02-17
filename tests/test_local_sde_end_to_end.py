@@ -117,6 +117,70 @@ def test_extracts_dmft_quantities_correctly(setup, niw_core, niv_core, niv_shell
     assert np.allclose(vq.mat, np.zeros_like(vq.mat))
 
 
+@pytest.mark.parametrize(
+    "niw_core, niv_core, niv_shell",
+    [
+        (10, 20, 0),
+        (20, 10, 0),
+        (20, 20, 0),
+        (10, 20, 10),
+        (20, 10, 10),
+        (20, 20, 10),
+        (-1, 20, 10),
+        (20, -1, 10),
+        (-1, -1, 10),
+    ],
+)
+def test_extracts_dmft_quantities_correctly_with_symmetrization(setup, niw_core, niv_core, niv_shell):
+    folder = setup
+
+    config.box.niw_core = niw_core
+    config.box.niv_core = niv_core
+    config.box.niv_shell = niv_shell
+    config.dmft.symmetrize_orbitals = [1, 2]
+
+    g_dmft, s_dmft, g2_dens, g2_magn = moldga.dga_io.load_from_w2dyn_file_and_update_config()
+
+    if niw_core == -1:
+        assert config.box.niw_core == 20
+    if niv_core == -1:
+        assert config.box.niv_core == 20
+
+    assert config.box.niv_full == config.box.niv_core + config.box.niv_shell
+
+    g2_dens_ref = (
+        LocalFourPoint.load(f"{folder}/g2_dens_loc.npy")
+        .to_full_niw_range()
+        .cut_niw_and_niv(config.box.niw_core, config.box.niv_core)
+    ).symmetrize_orbitals([1, 2])
+    g2_magn_ref = (
+        LocalFourPoint.load(f"{folder}/g2_magn_loc.npy")
+        .to_full_niw_range()
+        .cut_niw_and_niv(config.box.niw_core, config.box.niv_core)
+    ).symmetrize_orbitals([1, 2])
+
+    assert np.allclose(g_dmft[0, 0], g_dmft[1, 1])
+    assert np.allclose(g_dmft[0, 1], g_dmft[1, 0])
+
+    s_dmft = s_dmft[0, 0, 0]
+    assert np.allclose(s_dmft[0, 0], s_dmft[1, 1])
+    assert np.allclose(s_dmft[0, 1], s_dmft[1, 0])
+
+    assert np.allclose(g2_dens.mat, g2_dens_ref.mat)
+    assert np.allclose(g2_magn.mat, g2_magn_ref.mat)
+
+    for g2 in [g2_dens, g2_magn]:
+        assert np.array_equal(g2[0, 0, 0, 0], g2[1, 1, 1, 1])
+        assert np.array_equal(g2[0, 0, 1, 1], g2[1, 1, 0, 0])
+        assert np.array_equal(g2[0, 1, 0, 1], g2[1, 0, 1, 0])
+        assert np.array_equal(g2[0, 1, 1, 0], g2[1, 0, 0, 1])
+
+        assert np.array_equal(g2[1, 0, 0, 0], g2[0, 1, 1, 1])
+        assert np.array_equal(g2[0, 1, 0, 0], g2[1, 0, 1, 1])
+        assert np.array_equal(g2[0, 0, 1, 0], g2[1, 1, 0, 1])
+        assert np.array_equal(g2[0, 0, 0, 1], g2[1, 1, 1, 0])
+
+
 @pytest.mark.parametrize("niw_core, niv_core, niv_shell", [(20, 20, 10)])
 def test_calculates_local_sde_correctly(setup, niw_core, niv_core, niv_shell):
     folder = setup
@@ -124,6 +188,7 @@ def test_calculates_local_sde_correctly(setup, niw_core, niv_core, niv_shell):
     config.box.niw_core = niw_core
     config.box.niv_core = niv_core
     config.box.niv_shell = niv_shell
+    config.dmft.symmetrize_orbitals = []
 
     g_dmft, s_dmft, g2_dens, g2_magn = moldga.dga_io.load_from_w2dyn_file_and_update_config()
 

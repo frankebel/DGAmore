@@ -156,6 +156,14 @@ class IHaveMat(ABC):
             contraction, self.mat, *[obj.mat if isinstance(obj, IHaveMat) else obj for obj in args], optimize=True
         )
 
+    def filter_small_values(self, threshold: float = 1e-12):
+        """
+        Sets all values in the underlying matrix to zero which are smaller than the given threshold in absolute value.
+        This can be used to save memory and speed up calculations by setting very small values to zero.
+        """
+        self.mat[(np.abs(self.mat.real) < threshold) & (np.abs(self.mat.imag) < threshold)] = 0.0
+        return self
+
 
 class IHaveChannel(ABC):
     """

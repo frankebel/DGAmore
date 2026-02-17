@@ -39,6 +39,10 @@ dmft_input:
   fname_1p: "1p-data.hdf5" # Filename of the one-particle DMFT calculation; default: 1p-data.hdf5
   fname_2p: "g4iw_sym.hdf5" # Name of the two-particle DMFT calculation; default: g4iw_sym.hdf5
   do_sym_v_vp: True # If True, the code will symmetrize G2 from DMFT in the v and vp indices
+  symmetrize_orbitals: [] # List of orbitals that will be symmetrized, starting from 1 (first orbital is 1, second orbital is 2, etc.).
+  # If left empty, no symmetrization will be performed in the orbital indices. This is only relevant for multi-orbital systems.
+  # Can be [1,2] or [[1,2]] for a two-orbital system with degenerate orbitals, for example. Also possible are statements like
+  # [[1,2], [3,4]] for a four-orbital system with two pairs of degenerate orbitals or [[1,2,3,4]] for a four-orbital system with four degenerate orbitals.
 
 eliashberg:
   perform_eliashberg: False # If True, the code will perform a power iteration to solve the linearized Eliashberg equation for the superconducting eigenvalues and gap functions

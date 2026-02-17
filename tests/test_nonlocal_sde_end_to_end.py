@@ -101,6 +101,7 @@ def test_calculates_nonlocal_sde_correctly(setup, niw_core, niv_core, niv_shell,
     config.box.niw_core = niw_core
     config.box.niv_core = niv_core
     config.box.niv_shell = niv_shell
+    config.dmft.symmetrize_orbitals = []
 
     g_dmft, s_dmft, g2_dens, g2_magn = dga_io.load_from_w2dyn_file_and_update_config()
 

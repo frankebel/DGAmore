@@ -1,10 +1,10 @@
-import numpy as np
-import pytest
+import itertools
 from unittest.mock import patch
 
-from moldga.local_four_point import LocalFourPoint
+import numpy as np
+import pytest
+
 from moldga.local_n_point import LocalNPoint
-from moldga.n_point_base import SpinChannel
 
 
 def test_initializes_with_valid_parameters():
@@ -404,3 +404,344 @@ def test_saves_matrix_calls_to_half_niw_range_when_half_range():
         mock_full.assert_not_called()
         mock_half.assert_called_once()
         mock_save.assert_called_once()
+
+
+def test_symmetrizes_orbitals_correctly():
+    mat = np.random.rand(4, 4, 4, 4)
+    obj = LocalNPoint(mat, 4, 0, 0)
+    orbitals = [1, 2]
+    orbital_axes = (0, 1, 2, 3)
+    symmetrized_obj = obj._symmetrize_orbitals(orbitals, orbital_axes)
+
+    assert np.allclose(0.5 * (obj[0, 0, 0, 0] + obj[1, 1, 1, 1]), symmetrized_obj[0, 0, 0, 0])
+    assert np.allclose(symmetrized_obj[0, 0, 0, 0], symmetrized_obj[1, 1, 1, 1])
+    assert np.allclose(symmetrized_obj[1, 1, 0, 0], symmetrized_obj[0, 0, 1, 1])
+    assert np.allclose(symmetrized_obj[1, 0, 0, 0], symmetrized_obj[0, 1, 1, 1])
+
+    assert not np.allclose(symmetrized_obj[2, 2, 2, 2], symmetrized_obj[3, 3, 3, 3])
+    assert not np.allclose(symmetrized_obj[2, 2, 0, 0], symmetrized_obj[3, 3, 1, 1])
+    assert not np.allclose(symmetrized_obj[2, 0, 0, 0], symmetrized_obj[3, 1, 1, 1])
+
+
+def test_raises_error_for_invalid_orbitals():
+    mat = np.random.rand(4, 4, 4, 4)
+    obj = LocalNPoint(mat, 4, 0, 0)
+    orbital_axes = (0, 1, 2, 3)
+
+    with pytest.raises(ValueError):
+        obj._symmetrize_orbitals([0, 5], orbital_axes)
+
+
+def test_returns_self_for_single_orbital():
+    mat = np.random.rand(4, 4, 4, 4)
+    obj = LocalNPoint(mat, 4, 0, 0)
+    orbital_axes = (0, 1, 2, 3)
+    result = obj._symmetrize_orbitals([1], orbital_axes)
+    assert result is obj
+
+
+def test_checks_if_orbitals_are_symmetrized():
+    mat = np.random.rand(4, 4, 4, 4)
+    obj = LocalNPoint(mat, 4, 0, 0)
+    orbitals = [1, 3]
+    orbital_axes = (0, 1, 2, 3)
+    obj._symmetrize_orbitals(orbitals, orbital_axes)
+    assert obj._is_orbitally_symmetrized(orbitals, orbital_axes) is True
+
+
+def test_detects_unsymmetrized_orbitals():
+    mat = np.random.rand(4, 4, 4, 4)
+    obj = LocalNPoint(mat, 4, 0, 0)
+    orbitals = [1, 3]
+    orbital_axes = (0, 1, 2, 3)
+    assert obj._is_orbitally_symmetrized(orbitals, orbital_axes) is False
+
+
+def test_symmetrize_single_orbital_is_noop_and_returns_self():
+    mat = np.random.rand(4, 4, 4, 4)
+    original = mat.copy()
+    obj = LocalNPoint(mat, 4, 0, 0)
+    result = obj._symmetrize_orbitals([1], (0, 1, 2, 3))
+    assert result is obj
+    assert np.allclose(result.mat, original)
+
+
+@pytest.mark.parametrize("orbitals", [[1], [1, 2], [1, 3], [1, 2, 3], [1, 2, 3, 4]])
+def test_symmetrize_multiple_orbital_sets(orbitals):
+    nb = 4
+    mat = np.random.rand(nb, nb, nb, nb)
+
+    obj = LocalNPoint(mat.copy(), 4, 0, 0)
+    orbital_axes = (0, 1, 2, 3)
+
+    sym_obj = obj._symmetrize_orbitals(orbitals, orbital_axes)
+    sym_mat = sym_obj.mat
+
+    orbitals_idx = np.array(orbitals) - 1
+
+    if len(orbitals_idx) <= 1:
+        return
+
+    # 1) Fully diagonal [i,i,i,i]
+    ref = sym_mat[orbitals_idx[0], orbitals_idx[0], orbitals_idx[0], orbitals_idx[0]]
+
+    for o in orbitals_idx[1:]:
+        assert np.allclose(sym_mat[o, o, o, o], ref)
+
+    # 2) [i,i,j,j]
+    vals = []
+    for i in orbitals_idx:
+        for j in orbitals_idx:
+            if i != j:
+                vals.append(sym_mat[i, i, j, j])
+
+    ref = vals[0]
+    for v in vals:
+        assert np.allclose(v, ref)
+
+    # 3) [i,j,j,i]
+    vals = []
+    for i in orbitals_idx:
+        for j in orbitals_idx:
+            if i != j:
+                vals.append(sym_mat[i, j, j, i])
+
+    if vals:
+        ref = vals[0]
+        for v in vals:
+            assert np.allclose(v, ref)
+
+    # 4) [i,j,i,j]
+    vals = []
+    for i in orbitals_idx:
+        for j in orbitals_idx:
+            if i != j:
+                vals.append(sym_mat[i, j, i, j])
+
+    if vals:
+        ref = vals[0]
+        for v in vals:
+            assert np.allclose(v, ref)
+
+    # 5) 3–1 patterns
+    vals = []
+
+    for i in orbitals_idx:
+        for j in orbitals_idx:
+            if i != j:
+                base = [i, j, j, j]
+                for perm in set(itertools.permutations(base)):
+                    vals.append(sym_mat[perm])
+
+    if vals:
+        ref = vals[0]
+        for v in vals:
+            assert np.allclose(v, ref)
+
+
+@pytest.mark.parametrize(
+    "orbital_groups", [[[1, 2], [3, 4]], [[1, 2, 3], [4]], [[1, 3], [2, 4]], [[1, 2, 3, 4]], [[1], [2], [3], [4]]]
+)
+def test_symmetrize_multiple_groups(orbital_groups):
+    nb = 4
+    mat = np.random.rand(nb, nb, nb, nb)
+
+    obj = LocalNPoint(mat.copy(), 4, 0, 0)
+    orbital_axes = (0, 1, 2, 3)
+
+    sym_obj = obj._symmetrize_orbitals(orbital_groups, orbital_axes)
+    sym_mat = sym_obj.mat
+
+    # Check symmetry inside each group
+    for group in orbital_groups:
+        group_idx = np.array(group) - 1
+
+        if len(group_idx) <= 1:
+            continue
+
+        # 1) Fully diagonal
+        ref = sym_mat[group_idx[0], group_idx[0], group_idx[0], group_idx[0]]
+
+        for o in group_idx[1:]:
+            assert np.allclose(sym_mat[o, o, o, o], ref)
+
+        # 2) [i,i,j,j]
+        vals = []
+        for i in group_idx:
+            for j in group_idx:
+                if i != j:
+                    vals.append(sym_mat[i, i, j, j])
+
+        ref = vals[0]
+        for v in vals:
+            assert np.allclose(v, ref)
+
+        # 3) [i,j,j,i]
+        vals = []
+        for i in group_idx:
+            for j in group_idx:
+                if i != j:
+                    vals.append(sym_mat[i, j, j, i])
+
+        if vals:
+            ref = vals[0]
+            for v in vals:
+                assert np.allclose(v, ref)
+
+        # 4) [i,j,i,j]
+        vals = []
+        for i in group_idx:
+            for j in group_idx:
+                if i != j:
+                    vals.append(sym_mat[i, j, i, j])
+
+        if vals:
+            ref = vals[0]
+            for v in vals:
+                assert np.allclose(v, ref)
+
+        # 5) 3–1 permutations
+        vals = []
+        for i in group_idx:
+            for j in group_idx:
+                if i != j:
+                    base = [i, j, j, j]
+                    for perm in set(itertools.permutations(base)):
+                        vals.append(sym_mat[perm])
+
+        if vals:
+            ref = vals[0]
+            for v in vals:
+                assert np.allclose(v, ref)
+
+    # Ensure no forced equality between different groups
+    nontrivial_groups = [g for g in orbital_groups if len(g) > 1]
+
+    if len(nontrivial_groups) >= 2:
+        g1 = nontrivial_groups[0][0] - 1
+        g2 = nontrivial_groups[1][0] - 1
+
+        # Should not be deterministically equal
+        assert not np.array_equal(
+            sym_mat[g1, g1, g1, g1],
+            sym_mat[g2, g2, g2, g2],
+        )
+
+
+def test_orbital_symmetrization_patterns():
+    mat = np.random.rand(3, 3, 3, 3)
+    obj = LocalNPoint(mat.copy(), 4, 0, 0)
+
+    orbitals = [[1, 2, 3]]  # 1-based
+    obj._symmetrize_orbitals(orbitals, orbital_axes=(0, 1, 2, 3))
+
+    # Diagonal entries should be equal
+    assert obj.mat[0, 0, 0, 0] == obj.mat[1, 1, 1, 1] == obj.mat[2, 2, 2, 2]
+
+    orbitals = [0, 1, 2]
+    # Pair pattern [i,i,j,j]
+    vals_iijj = [obj.mat[i, i, j, j] for i in orbitals for j in orbitals if i != j]
+    ref_iijj = vals_iijj[0]
+    for v in vals_iijj:
+        assert np.allclose(v, ref_iijj)
+
+    # Pair pattern [i,j,j,i]
+    vals_ijji = [obj.mat[i, j, j, i] for i in orbitals for j in orbitals if i != j]
+    ref_ijji = vals_ijji[0]
+    for v in vals_ijji:
+        assert np.allclose(v, ref_ijji)
+
+
+def test_symmetrize_raises_for_orbitals_out_of_range_negative_and_large():
+    mat = np.random.rand(4, 4, 4, 4)
+    obj = LocalNPoint(mat, 4, 0, 0)
+    with pytest.raises(ValueError):
+        obj._symmetrize_orbitals([0, 2], (0, 1, 2, 3))
+    with pytest.raises(ValueError):
+        obj._symmetrize_orbitals([1, 10], (0, 1, 2, 3))
+
+
+@pytest.mark.parametrize("orbitals", [[1], [1, 2], [1, 3], [1, 2, 3], [1, 2, 3, 4]])
+def test_symmetrize_two_orbital_axes_single_set(orbitals):
+    nb = 4
+    mat = np.random.rand(nb, nb)
+
+    obj = LocalNPoint(mat.copy(), 2, 0, 0)
+    orbital_axes = (0, 1)
+
+    sym_obj = obj._symmetrize_orbitals(orbitals, orbital_axes)
+    sym_mat = sym_obj.mat
+
+    orbitals_idx = np.array(orbitals) - 1
+
+    if len(orbitals_idx) <= 1:
+        return
+
+    # 1) Diagonal elements equal
+    ref = sym_mat[orbitals_idx[0], orbitals_idx[0]]
+
+    for o in orbitals_idx[1:]:
+        assert np.allclose(sym_mat[o, o], ref)
+
+    # 2) Off-diagonal equal
+    vals = []
+    for i in orbitals_idx:
+        for j in orbitals_idx:
+            if i != j:
+                vals.append(sym_mat[i, j])
+
+    if vals:
+        ref = vals[0]
+        for v in vals:
+            assert np.allclose(v, ref)
+
+
+@pytest.mark.parametrize(
+    "orbital_groups", [[[1, 2], [3, 4]], [[1, 2, 3], [4]], [[1, 3], [2, 4]], [[1, 2, 3, 4]], [[1], [2], [3], [4]]]
+)
+def test_symmetrize_two_orbital_axes_multiple_groups(orbital_groups):
+    nb = 4
+    mat = np.random.rand(nb, nb)
+
+    obj = LocalNPoint(mat.copy(), 2, 0, 0)
+    orbital_axes = (0, 1)
+
+    sym_obj = obj._symmetrize_orbitals(orbital_groups, orbital_axes)
+    sym_mat = sym_obj.mat
+
+    # Check symmetry inside each group
+    for group in orbital_groups:
+        group_idx = np.array(group) - 1
+
+        if len(group_idx) <= 1:
+            continue
+
+        # Diagonal degeneracy
+        ref = sym_mat[group_idx[0], group_idx[0]]
+
+        for o in group_idx[1:]:
+            assert np.allclose(sym_mat[o, o], ref)
+
+        # Off-diagonal degeneracy
+        vals = []
+        for i in group_idx:
+            for j in group_idx:
+                if i != j:
+                    vals.append(sym_mat[i, j])
+
+        if vals:
+            ref = vals[0]
+            for v in vals:
+                assert np.allclose(v, ref)
+
+    # Ensure no enforced equality between distinct groups
+    nontrivial_groups = [g for g in orbital_groups if len(g) > 1]
+
+    if len(nontrivial_groups) >= 2:
+        g1 = nontrivial_groups[0][0] - 1
+        g2 = nontrivial_groups[1][0] - 1
+
+        assert not np.array_equal(
+            sym_mat[g1, g1],
+            sym_mat[g2, g2],
+        )

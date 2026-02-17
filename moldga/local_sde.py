@@ -174,6 +174,12 @@ def perform_local_schwinger_dyson(
     """
     gchi0 = BubbleGenerator.create_generalized_chi0(g_loc, config.box.niw_core, config.box.niv_full)
 
+    if config.dmft.symmetrize_orbitals:
+        gchi0 = gchi0.symmetrize_orbitals(config.dmft.symmetrize_orbitals)
+        config.logger.info(
+            f"Symmetrized gchi0 with respect to orbitals {', '.join(str(o) for o in config.dmft.symmetrize_orbitals)}."
+        )
+
     if config.eliashberg.perform_eliashberg:
         gchi0.save(name="gchi0_loc", output_dir=config.output.output_path)
 
@@ -182,7 +188,23 @@ def perform_local_schwinger_dyson(
     gamma_d, gchi_d_sum, vrg_d, f_d, gchi_d = create_vertex_functions(g2_dens, gchi0, gchi0_inv_core, g_loc, u_loc)
     gamma_m, gchi_m_sum, vrg_m, f_m, gchi_m = create_vertex_functions(g2_magn, gchi0, gchi0_inv_core, g_loc, u_loc)
 
+    if config.dmft.symmetrize_orbitals:
+        for vertex in [gamma_d, gamma_m, gchi_d_sum, gchi_m_sum, vrg_d, vrg_m, f_d, f_m, gchi_d, gchi_m]:
+            vertex.symmetrize_orbitals(config.dmft.symmetrize_orbitals)
+        config.logger.info(
+            f"Symmetrized local vertex functions with respect to orbitals "
+            f"{', '.join(str(o) for o in config.dmft.symmetrize_orbitals)}."
+        )
+
     sigma_loc = get_loc_self_energy_vrg(vrg_d, vrg_m, gchi_d_sum, gchi_m_sum, g_loc, u_loc)
+
+    if config.dmft.symmetrize_orbitals:
+        sigma_loc = sigma_loc.symmetrize_orbitals(config.dmft.symmetrize_orbitals)
+        config.logger.info(
+            f"Symmetrized local self-energy with respect to orbitals "
+            f"{', '.join(str(o) for o in config.dmft.symmetrize_orbitals)}."
+        )
+
     return gamma_d, gamma_m, gchi_d_sum, gchi_m_sum, vrg_d, vrg_m, f_d, f_m, gchi_d, gchi_m, sigma_loc
 
 

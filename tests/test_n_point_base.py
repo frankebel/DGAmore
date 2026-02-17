@@ -573,3 +573,46 @@ def test_compresses_other_when_self_is_compressed():
     aligned = obj1._align_q_dimensions_for_operations(obj2)
     assert obj1.has_compressed_q_dimension
     assert aligned.has_compressed_q_dimension
+
+
+def test_filter_small_values_sets_tiny_entries_to_zero():
+    mat = np.array(
+        [
+            [1e-13 + 1e-13j, 1e-11 + 1e-13j],
+            [1e-13 + 1e-11j, 1.0 + 0.0j],
+        ],
+        dtype=np.complex128,
+    )
+    obj = IHaveMat(mat)
+    returned = obj.filter_small_values()  # default threshold 1e-12
+
+    # method returns self
+    assert returned is obj
+
+    res = obj.mat
+    assert res[0, 0] == 0.0 + 0.0j  # both real and imag below threshold -> zeroed
+    assert res[0, 1] != 0.0 + 0.0j  # imag above threshold -> not zeroed
+    assert res[1, 0] != 0.0 + 0.0j  # imag above threshold -> not zeroed
+    assert res[1, 1] == 1.0 + 0.0j  # large value preserved
+
+
+def test_filter_small_values_respects_custom_threshold():
+    mat = np.array([1e-6 + 1e-6j, 2e-6 + 0.0j, 5e-5 + 1e-8j], dtype=np.complex128)
+    obj = IHaveMat(mat)
+    obj.filter_small_values(threshold=1e-5)
+
+    # first two entries have both components < 1e-5 -> zeroed
+    assert obj.mat[0] == 0.0 + 0.0j
+    assert obj.mat[1] == 0.0 + 0.0j
+    # last entry has real component above threshold -> preserved
+    assert not (obj.mat[2].real == 0.0 and obj.mat[2].imag == 0.0)
+
+
+def test_filter_small_values_preserves_values_with_one_large_component():
+    mat = np.array([1e-13 + 1e-8j, 1e-8 + 1e-13j], dtype=np.complex128)
+    obj = IHaveMat(mat)
+    obj.filter_small_values(threshold=1e-12)
+
+    # entries with at least one component above threshold must be preserved
+    assert not (obj.mat[0].real == 0.0 and obj.mat[0].imag == 0.0)
+    assert not (obj.mat[1].real == 0.0 and obj.mat[1].imag == 0.0)
