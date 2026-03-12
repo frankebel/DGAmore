@@ -106,6 +106,8 @@ The following code snippet shows the content of an exemplary job submit script f
 #SBATCH --qos = <some qos>
 #SBATCH --ntasks-per-node = <n proc>
 #SBATCH -t <time limit>
+#SBATCH -o log.txt
+#SBATCH -e log.txt
 
 # Load the necessary modules, in this case activate the conda environment 
 # with the preinstalled moLDGA package and its dependencies
@@ -116,11 +118,15 @@ source <path to miniconda>/miniconda3/bin/activate <your conda env>
 export OMP_NUM_THREADS=1
 
 # Run the code with MPI, in this case with srun, which is the recommended way to run MPI jobs on a slurm-based cluster:
-srun python <path to code>/dga_main.py -p "<path to config>" -c "<name of config>.yaml"
+srun python -u <path to code>/dga_main.py -p "<path to config>" -c "<name of config>.yaml"
 
 # If you want to use mpirun or mpiexec instead of srun, you can use the following command:
-mpirun/mpiexec -np $SLURM_NTASKS python <path to code>/dga_main.py -p "<path to config>" -c "<name of config>.yaml"
+mpirun/mpiexec -np $SLURM_NTASKS python -u <path to code>/dga_main.py -p "<path to config>" -c "<name of config>.yaml"
 ```
+
+The `#SBATCH` options `-o` and `-e` denote the file where the job output and errors, respectively, will be written. In
+this case both will be written into the same file, however, it is possible to use separate files.
+The Python option `-u` tells the program to flush `stdout` and `stderr` in real time.
 
 ---
 
