@@ -1,3 +1,9 @@
+# SPDX-FileCopyrightText: 2025-2026 Julian Peil <julian.peil@tuwien.ac.at>
+# SPDX-License-Identifier: MIT
+#
+# moLDGA — Multi-Orbital Ladder Dynamical Vertex Approximation (LDGA) &
+#          Eliashberg Equation Solver for Strongly Correlated Electron Systems
+
 import gc
 import glob
 import os
@@ -704,11 +710,11 @@ def apply_mixing_strategy(
     is either 'linear' or 'pulay'.
     """
     logger = config.logger
-    strategy = config.self_consistency.mixing_strategy
     n_hist = config.self_consistency.mixing_history_length
+    alpha = config.self_consistency.mixing
 
     if (
-        strategy == "pulay"
+        config.self_consistency.mixing_strategy == "pulay"
         and current_iter > n_hist
         and config.self_consistency.save_iter
         and config.output.save_quantities
@@ -720,10 +726,10 @@ def apply_mixing_strategy(
         last_proposals = [sigma_dmft_stacked] + last_results
         last_results = last_results + [sigma_new.mat]
 
-        niv_dmft = sigma_new.current_shape[-1] // 2
+        niv = sigma_new.current_shape[-1] // 2
         niv_core = config.box.niv_core
-        last_proposals = [sigma[..., niv_dmft - niv_core : niv_dmft + niv_core] for sigma in last_proposals]
-        last_results = [sigma[..., niv_dmft - niv_core : niv_dmft + niv_core] for sigma in last_results]
+        last_proposals = [sigma[..., niv - niv_core : niv + niv_core] for sigma in last_proposals]
+        last_results = [sigma[..., niv - niv_core : niv + niv_core] for sigma in last_results]
         logger.info(f"Loaded last {n_hist} self-energies from files.")
 
         shape = last_results[-1].shape
@@ -749,17 +755,20 @@ def apply_mixing_strategy(
 
             f_matrix[:, i] -= r_matrix[:, i]
 
+        # Residual: F(x_n) - x_n, where x_n = last_proposals[-1] = sigma_old (core window)
         iter_diff = get_result(-1) - get_proposal(-1)
         f_i[:n_total] = iter_diff.real
         f_i[n_total:] = iter_diff.imag
 
-        update = config.self_consistency.mixing * f_i
-        fact1 = (r_matrix + config.self_consistency.mixing * f_matrix) @ np.linalg.inv(f_matrix.T @ f_matrix)
-        update -= fact1 @ (f_matrix.T @ f_i)
+        # Solve min||F @ c - f_i|| via least squares (more stable than explicit inverse)
+        coeffs, _, _, _ = np.linalg.lstsq(f_matrix, f_i, rcond=None)
+
+        # Pulay update: x_{n+1} = x_n + alpha*f_i - (R + alpha*F) @ c
+        update = alpha * f_i - (r_matrix + alpha * f_matrix) @ coeffs
         update = update[:n_total] + 1j * update[n_total:]
-        sigma_new.mat[..., niv_dmft - niv_core : niv_dmft + niv_core] = sigma_old.compress_q_dimension().mat[
-            ..., niv_dmft - niv_core : niv_dmft + niv_core
-        ] + update.reshape(shape)
+
+        # Update the new self energy
+        sigma_new.mat[..., niv - niv_core : niv + niv_core] = get_proposal(-1).reshape(shape) + update.reshape(shape)
 
         logger.info(
             f"Pulay mixing applied with {n_hist} previous iterations and a mixing parameter of {config.self_consistency.mixing}."

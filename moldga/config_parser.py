@@ -1,3 +1,9 @@
+# SPDX-FileCopyrightText: 2025-2026 Julian Peil <julian.peil@tuwien.ac.at>
+# SPDX-License-Identifier: MIT
+#
+# moLDGA — Multi-Orbital Ladder Dynamical Vertex Approximation (LDGA) &
+#          Eliashberg Equation Solver for Strongly Correlated Electron Systems
+
 import argparse
 import os
 
@@ -207,8 +213,8 @@ class ConfigParser:
         section = conf_file["self_energy_interpolation"]
 
         conf.do_interpolation = self._try_parse(section, "do_interpolation", False)
-        conf.beta_target = self._try_parse(section, "beta_target", 1.0)
-        conf.niv_target = self._try_parse(section, "niv_target", 10)
+        conf.beta_target = self._try_parse(section, "target_beta", 1.0)
+        conf.niv_target = self._try_parse(section, "target_niv", 10)
 
         return conf
 
