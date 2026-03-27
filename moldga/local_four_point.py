@@ -1,3 +1,9 @@
+# SPDX-FileCopyrightText: 2025-2026 Julian Peil <julian.peil@tuwien.ac.at>
+# SPDX-License-Identifier: MIT
+#
+# moLDGA — Multi-Orbital Ladder Dynamical Vertex Approximation (LDGA) &
+#          Eliashberg Equation Solver for Strongly Correlated Electron Systems
+
 from moldga.interaction import LocalInteraction, Interaction
 from moldga.local_n_point import LocalNPoint
 from moldga.matsubara_frequencies import MFHelper

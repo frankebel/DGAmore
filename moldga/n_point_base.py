@@ -1,3 +1,9 @@
+# SPDX-FileCopyrightText: 2025-2026 Julian Peil <julian.peil@tuwien.ac.at>
+# SPDX-License-Identifier: MIT
+#
+# moLDGA — Multi-Orbital Ladder Dynamical Vertex Approximation (LDGA) &
+#          Eliashberg Equation Solver for Strongly Correlated Electron Systems
+
 import gc
 from abc import ABC
 from copy import deepcopy
@@ -490,29 +496,54 @@ class IAmNonLocal(IHaveMat, ABC):
                 if np.allclose(u_ref, identity):
                     continue
 
-                uc_ref = u_ref.conj()
                 idx = np.array(indices)
 
-                if num_orbital_dimensions == 2:
-                    if path_2 is None:
-                        path_2 = np.einsum_path(
-                            "ap,bq,kpq...->kab...", u_ref, uc_ref, self.mat[idx], optimize="optimal"
-                        )[0]
-                    self.mat[idx] = np.einsum("ap,bq,kpq...->kab...", u_ref, uc_ref, self.mat[idx], optimize=path_2)
-                elif num_orbital_dimensions == 4:
-                    if path_4 is None:
-                        path_4 = np.einsum_path(
+                def _is_permutation_matrix(u: np.ndarray) -> bool:
+                    return (
+                        np.allclose(np.abs(u), np.abs(u).astype(int))  # only 0s and 1s
+                        and np.allclose(u.sum(axis=0), 1)  # one 1 per column
+                        and np.allclose(u.sum(axis=1), 1)  # one 1 per row
+                    )
+
+                if _is_permutation_matrix(u_ref):
+                    # For real permutation matrices, U @ M @ U^T is just index reordering.
+                    # Find the permutation: perm[i] = j means orbital i gets content from orbital j.
+                    perm = np.argmax(u_ref.real, axis=1)
+
+                    if num_orbital_dimensions == 2:
+                        self.mat[idx] = self.mat[idx][:, perm, ...][:, :, perm, ...]
+                    elif num_orbital_dimensions == 4:
+                        self.mat[idx] = self.mat[idx][:, perm, ...][:, :, perm, ...][:, :, :, perm, ...][
+                            :, :, :, :, perm, ...
+                        ]
+                else:
+                    uc_ref = u_ref.conj()
+                    if num_orbital_dimensions == 2:
+                        if path_2 is None:
+                            path_2 = np.einsum_path(
+                                "ap,bq,kpq...->kab...", u_ref, uc_ref, self.mat[idx], optimize="optimal"
+                            )[0]
+                        self.mat[idx] = np.einsum("ap,bq,kpq...->kab...", u_ref, uc_ref, self.mat[idx], optimize=path_2)
+                    elif num_orbital_dimensions == 4:
+                        if path_4 is None:
+                            path_4 = np.einsum_path(
+                                "ap,bq,cr,ds,kpqrs...->kabcd...",
+                                u_ref,
+                                uc_ref,
+                                u_ref,
+                                uc_ref,
+                                self.mat[idx],
+                                optimize="optimal",
+                            )[0]
+                        self.mat[idx] = np.einsum(
                             "ap,bq,cr,ds,kpqrs...->kabcd...",
                             u_ref,
                             uc_ref,
                             u_ref,
                             uc_ref,
                             self.mat[idx],
-                            optimize="optimal",
-                        )[0]
-                    self.mat[idx] = np.einsum(
-                        "ap,bq,cr,ds,kpqrs...->kabcd...", u_ref, uc_ref, u_ref, uc_ref, self.mat[idx], optimize=path_4
-                    )
+                            optimize=path_4,
+                        )
 
         self.mat = self.mat.reshape((np.prod(self.nq), *self.original_shape[1:]))
         self.update_original_shape()

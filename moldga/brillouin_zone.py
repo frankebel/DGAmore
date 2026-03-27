@@ -1,6 +1,11 @@
+# SPDX-FileCopyrightText: 2025-2026 Julian Peil <julian.peil@tuwien.ac.at>
+# SPDX-License-Identifier: MIT
+#
+# moLDGA — Multi-Orbital Ladder Dynamical Vertex Approximation (LDGA) &
+#          Eliashberg Equation Solver for Strongly Correlated Electron Systems
+
 """
-Module to handle operations within the (irreducible) Brillouin zone. Copied over from Paul Worm's code.
-Only modified the constant arrays and made enums out of them for type hinting.
+Module to handle operations within the (irreducible) Brillouin zone. Heavily inspired by DGApy.
 """
 
 import warnings

@@ -1,3 +1,9 @@
+# SPDX-FileCopyrightText: 2025-2026 Julian Peil <julian.peil@tuwien.ac.at>
+# SPDX-License-Identifier: MIT
+#
+# moLDGA — Multi-Orbital Ladder Dynamical Vertex Approximation (LDGA) &
+#          Eliashberg Equation Solver for Strongly Correlated Electron Systems
+
 import contextlib
 import os
 import types
@@ -36,13 +42,12 @@ def setup_srvo3_cubic():
         c.box.niv_shell = 0
         c.output.save_quantities = False
         c.output.do_plotting = False
-        c.lattice.nk = (8, 8, 8)
+        c.lattice.nk = (12, 12, 12)
         c.lattice.nq = config.lattice.nk
-        c.lattice.symmetries = "three_dimensional_cubic"
         c.lattice.k_grid = bz.KGrid(c.lattice.nk, bz.three_dimensional_cubic_symmetries())
-        c.lattice.q_grid = config.lattice.k_grid
-        c.lattice.k_grid.specify_orbital_basis(3, "t2g")
-        c.lattice.q_grid.specify_orbital_basis(3, "t2g")
+        c.lattice.q_grid = c.lattice.k_grid
+        c.lattice.symmetries = "three_dimensional_cubic"
+        c.lattice.orbital_basis = "t2g"
         c.lattice.type = "from_wannier90"
         c.lattice.interaction_type = "kanamori_from_dmft"
         c.lattice.er_input = f"{f}/wan_hr.dat"
@@ -188,13 +193,15 @@ def test_calculates_srvo3_correctly(setup_srvo3_cubic):
     sigma_dga_cubic = nonlocal_sde.calculate_self_energy_q(comm_mock, u_loc, v_nonloc, s_dmft, s_loc)
 
     niv = sigma_dga_cubic.current_shape[-1] // 2
-    s_cubic = sigma_dga_cubic.compress_q_dimension().mat.reshape(8, 8, 8, 3, 3, 2 * niv)  # (nkx, nky, nkz, nb, nb, niv)
+    s_cubic = sigma_dga_cubic.compress_q_dimension().mat.reshape(
+        12, 12, 12, 3, 3, 2 * niv
+    )  # (nkx, nky, nkz, nb, nb, niv)
 
     s_xy_cub = np.swapaxes(s_cubic, 0, 1)
     s_xz_cub = np.swapaxes(s_cubic, 0, 2)
     s_yz_cub = np.swapaxes(s_cubic, 1, 2)
 
-    atol = 1e-2  # 8x8x8 grid is too coarse for tight mirror symmetry checks
+    atol = 1e-6
 
     # X_Y_SYM (kx<->ky): dxy(0) invariant, dxz(1)<->dyz(2) swap
     assert np.allclose(s_cubic[..., 0, 0, :], s_xy_cub[..., 0, 0, :], atol=atol), "X_Y_SYM dxy failed"
