@@ -8,7 +8,6 @@ import gc
 from copy import deepcopy
 
 import numpy as np
-from numpy.ma.core import swapaxes
 
 from moldga.brillouin_zone import KGrid
 from moldga.interaction import Interaction, LocalInteraction

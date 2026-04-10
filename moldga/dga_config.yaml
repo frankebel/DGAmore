@@ -66,7 +66,7 @@ self_energy_interpolation:
   target_niv: 10 # Target number of fermionic frequencies for the interpolation
 
 output:
-  output_path: "./" # Path, where the DGA output folders are created. If not specified, the output is created in the input folder directory of the DMFT files
+  output_path: "" # Path, where the DGA output folders are created. If not specified, the output is created in the input folder directory of the DMFT files
   save_quantities: True # If True, the code will save several quantities into the output folder
   do_plotting: True # If True, the code will plot some results into the output folder
   plotting_subfolder_name: "Plots" # name for the subfolder where the plots are saved

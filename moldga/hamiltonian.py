@@ -427,7 +427,7 @@ class Hamiltonian:
         """
         uq = self._convham_4_orbs(q_grid.kmesh.reshape(3, -1))
         n_bands = uq.shape[-1]
-        return Interaction(uq.reshape(*q_grid.nk + (n_bands,) * 4), SpinChannel.NONE, q_grid.nk)
+        return Interaction(uq.reshape(q_grid.nk + (n_bands,) * 4), SpinChannel.NONE, q_grid.nk)
 
     def _add_kinetic_term(self, hopping_elements: list) -> "Hamiltonian":
         """

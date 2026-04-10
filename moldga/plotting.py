@@ -11,7 +11,7 @@ from matplotlib import pyplot as plt
 from matplotlib import ticker
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
-import moldga.config as config
+from moldga.brillouin_zone import KGrid
 from moldga.gap_function import GapFunction
 from moldga.local_four_point import LocalFourPoint
 from moldga.local_n_point import LocalNPoint
@@ -112,6 +112,7 @@ def sigma_loc_checks(
 def chi_checks(
     chi_dens_list: list[np.ndarray],
     chi_magn_list: list[np.ndarray],
+    beta: float,
     labels: list[str],
     e_kin: float,
     output_dir: str = "./",
@@ -141,7 +142,7 @@ def chi_checks(
         axes[2].loglog(MFHelper.wn(len(cd[*orbs, :]) // 2), cd[*orbs, :].real, label=labels[i], ms=0)
     axes[2].loglog(
         MFHelper.wn(niw_chi_input),
-        np.real(1 / (1j * MFHelper.wn(niw_chi_input, config.sys.beta) + 0.000001) ** 2 * e_kin) * 2,
+        np.real(1 / (1j * MFHelper.wn(niw_chi_input, beta) + 0.000001) ** 2 * e_kin) * 2,
         ls="--",
         label="Asympt",
         ms=0,
@@ -153,7 +154,7 @@ def chi_checks(
         axes[3].loglog(MFHelper.wn(len(cd[*orbs, :]) // 2), cd[*orbs, :].real, label=labels[i], ms=0)
     axes[3].loglog(
         MFHelper.wn(niw_chi_input),
-        np.real(1 / (1j * MFHelper.wn(niw_chi_input, config.sys.beta) + 0.000001) ** 2 * e_kin) * 2,
+        np.real(1 / (1j * MFHelper.wn(niw_chi_input, beta) + 0.000001) ** 2 * e_kin) * 2,
         "--",
         label="Asympt",
         ms=0,
@@ -359,6 +360,7 @@ def plot_two_point_kx_ky_real_and_imag(
 
 def plot_two_point_kx_ky_with_fs_points(
     obj: LocalNPoint | IAmNonLocal,
+    k_grid: KGrid,
     kx: np.ndarray,
     ky: np.ndarray,
     pi_shift: bool = True,
@@ -377,7 +379,7 @@ def plot_two_point_kx_ky_with_fs_points(
     fs_ind = find_zeros(mat)
     n_fs = np.shape(fs_ind)[0]
     fs_ind = fs_ind[: n_fs // 2]
-    fs_points = np.stack((config.lattice.k_grid.kx[fs_ind[:, 0]], config.lattice.k_grid.ky[fs_ind[:, 1]]), axis=1)
+    fs_points = np.stack((k_grid.kx[fs_ind[:, 0]], k_grid.ky[fs_ind[:, 1]]), axis=1)
     plot_two_point_kx_ky(obj, kx, ky, pi_shift, title, name, orbs, output_dir, cmap, fs_points, do_save, show)
 
 

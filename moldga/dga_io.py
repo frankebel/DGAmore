@@ -272,17 +272,11 @@ def set_hamiltonian(er_type: str, er_input: str | list, int_type: str, int_input
     if int_type == "one_band_from_dmft" or int_type == "" or int_type is None:
         return ham.single_band_interaction(config.lattice.interaction.udd)
     elif int_type == "kanamori_from_dmft":
-        return ham.kanamori_interaction_dp(
+        return ham.kanamori_interaction_d(
             config.sys.nd_bands,
-            config.sys.np_bands,
             config.lattice.interaction.udd,
-            config.lattice.interaction.upp,
-            config.lattice.interaction.udp,
             config.lattice.interaction.jdd,
-            config.lattice.interaction.jpp,
-            config.lattice.interaction.jdp,
             config.lattice.interaction.vdd,
-            config.lattice.interaction.vpp,
         )
     elif int_type == "custom":
         if not isinstance(int_input, str):

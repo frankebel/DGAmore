@@ -178,7 +178,7 @@ def perform_local_schwinger_dyson(
     susceptibilities and the irreducible vertices for both the density and magnetic channel. Employs explicit
     asymptotics as proposed by Motoharu Kitatani et al. 2022 J. Phys. Mater. 5 034005; DOI 10.1088/2515-7639/ac7e6d.
     """
-    gchi0 = BubbleGenerator.create_generalized_chi0(g_loc, config.box.niw_core, config.box.niv_full)
+    gchi0 = BubbleGenerator.create_generalized_chi0(g_loc, config.box.niw_core, config.box.niv_full, config.sys.beta)
 
     if config.dmft.symmetrize_orbitals:
         gchi0 = gchi0.symmetrize_orbitals(config.dmft.symmetrize_orbitals)
@@ -249,7 +249,9 @@ def perform_local_schwinger_dyson_abinitio_dga(
     logger.info("Generalized susceptibility chi^wvv' (magn) done.")
     del g2_magn
 
-    gchi0_loc_full = BubbleGenerator.create_generalized_chi0(g_loc, config.box.niw_core, config.box.niv_full)
+    gchi0_loc_full = BubbleGenerator.create_generalized_chi0(
+        g_loc, config.box.niw_core, config.box.niv_full, config.sys.beta
+    )
     logger.info("Local bare susceptibility chi_0^wv done.")
     gchi0_core = gchi0_loc_full.cut_niv(config.box.niv_core)
 

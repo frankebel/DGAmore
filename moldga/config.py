@@ -14,8 +14,7 @@ from moldga.hamiltonian import Hamiltonian
 class InteractionConfig:
     """
     Class to store the interaction parameters. Currently, we only make use of udd, vdd, jdd for local and Kanamori-type
-    interactions. Other parameters are currently not used, however it would possible to extend the Hamiltonian class to
-    use them when setting up the interaction matrix.
+    interactions. Other parameters are currently not used.
     """
 
     def __init__(self):
@@ -56,7 +55,7 @@ class LatticeConfig:
     def __init__(self):
         self.symmetries: list[bz.KnownSymmetries] = bz.two_dimensional_square_symmetries()
         self.type: str = "from_wannier90"
-        self.er_input: str | list = "./wannier_hr.dat"
+        self.er_input: str | list = "/path/to/file"
         self.interaction_type: str = "one_band_from_dmft"
         self.interaction_input: str | list = ""
         self.orbital_basis: str = ""
@@ -85,7 +84,7 @@ class SelfConsistencyConfig:
         self.mixing: float = 0.2
         self.mixing_strategy: str = "linear"
         self.mixing_history_length: int = 3
-        self.previous_sc_path: str = "./"
+        self.previous_sc_path: str = ""
         self.use_lambda_correction: bool = False
         self.restrict_chi_phys: bool = False
         self.anderson_prev_res: float | None = None
@@ -99,15 +98,15 @@ class EliashbergConfig:
     """
 
     def __init__(self):
-        self.perform_eliashberg: bool = True
-        self.save_pairing_vertex: bool = True
+        self.perform_eliashberg: bool = False
+        self.save_pairing_vertex: bool = False
         self.save_fq: bool = False
-        self.construct_fq_cheap: bool = True
-        self.n_eig: int = 2
-        self.epsilon: float = 1e-4
+        self.construct_fq_cheap: bool = False
+        self.n_eig: int = 4
+        self.epsilon: float = 1e-6
         self.symmetry: str = "random"
-        self.subfolder_name: str = "Eliashberg"
         self.include_local_part: bool = True
+        self.subfolder_name: str = "Eliashberg"
 
 
 class LambdaCorrectionConfig:
@@ -163,19 +162,19 @@ class SelfEnergyInterpolationConfig:
 
     def __init__(self):
         self.do_interpolation: bool = False
-        self.beta_target: float = 0.0
-        self.niv_target: int = 0
+        self.beta_target: float = 1.0
+        self.niv_target: int = 10
 
 
 class OutputConfig:
     """
     Class to store the output parameters. The output path is the path where the results are saved, the plotting path
     is the path where the plots are saved, and the plotting subfolder name is the name of the subfolder in the plotting
-    path where the plots are saved. The Eliashberg path is the absolute path where the Eliashberg results are saved.
+    path where the plots are saved to. The Eliashberg path is the absolute path where the Eliashberg results are saved.
     """
 
     def __init__(self):
-        self.output_path: str = "./"
+        self.output_path: str = ""
         self.save_quantities: bool = True
         self.do_plotting: bool = True
         self.plotting_path: str = "./Plots/"

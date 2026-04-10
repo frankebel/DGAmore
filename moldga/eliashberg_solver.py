@@ -184,7 +184,7 @@ def create_local_ud_diagrams_pp_w0(g_loc: GreensFunction) -> Tuple[LocalFourPoin
     del gchi_dens_loc, gchi_magn_loc, gchi_ud_loc
 
     gchi0_loc_pp_w0 = (
-        BubbleGenerator.create_generalized_chi0_pp_w0(g_loc, gchi_ud_loc_pp_w0.niv)
+        BubbleGenerator.create_generalized_chi0_pp_w0(g_loc, gchi_ud_loc_pp_w0.niv, config.sys.beta)
         .extend_vn_to_diagonal()
         .flip_frequency_axis(-1)
     )
@@ -388,7 +388,7 @@ def solve(
 
     gchi0_q0_pp = None
     if mpi_dist_irrk.my_rank == 0:
-        gchi0_q0_pp = BubbleGenerator.create_generalized_chi0_q_pp_w0(giwk_dga, niv_pp)
+        gchi0_q0_pp = BubbleGenerator.create_generalized_chi0_q_pp_w0(giwk_dga, niv_pp, config.lattice.q_grid)
         logger.info("Created the bare bubble susceptibility in pp notation.")
 
         if config.eliashberg.include_local_part:

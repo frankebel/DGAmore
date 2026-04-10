@@ -19,7 +19,7 @@ class ConfigParser:
     """
     Parses the config file and builds the DgaConfig singleton class. The Configuration is then broadcasted to all
     processes. The config file location can be specified with the path and/or name arguments when executing the main
-    python file.
+    Python file.
     """
 
     def __init__(self):
@@ -29,7 +29,7 @@ class ConfigParser:
         """
         Parses the config file and builds the DgaConfig singleton class. Broadcasts the configuration to all
         processes. The config file location can be specified with the path and/or name arguments when executing the
-        main python file. If the config file is not found, it will raise an error.
+        main Python file. If the config file is not found, it will raise an error.
         """
         parser = argparse.ArgumentParser(
             prog="DGApy", description="Multi-orbital dynamical vertex approximation solver."
@@ -56,30 +56,34 @@ class ConfigParser:
         with open(os.path.join(path, name), "w+") as file:
             YAML().dump(self._config_file, file)
 
-    def _build_config_from_file(self, conf_file):
+    def _build_config_from_file(self, config_file):
         """
         Builds the full DgaConfig from the config file.
         """
-        config.dmft = self._build_dmft_config(conf_file)
-        config.output = self._build_output_config(conf_file)
-        config.self_consistency = self._build_self_consistency_config(conf_file)
-        config.eliashberg = self._build_eliashberg_config(conf_file)
-        config.lambda_correction = self._build_lambda_correction_config(conf_file)
-        config.box = self._build_box_config(conf_file)
-        config.lattice = self._build_lattice_config(conf_file)
-        config.self_energy_interpolation = self._build_self_energy_interpolation_config(conf_file)
-        config.sys = self._build_system_config(conf_file)
+        config.dmft = self._build_dmft_config(config_file)
+        config.output = self._build_output_config(config_file)
+        config.self_consistency = self._build_self_consistency_config(config_file)
+        config.eliashberg = self._build_eliashberg_config(config_file)
+        config.lambda_correction = self._build_lambda_correction_config(config_file)
+        config.box = self._build_box_config(config_file)
+        config.lattice = self._build_lattice_config(config_file)
+        config.self_energy_interpolation = self._build_self_energy_interpolation_config(config_file)
+        config.sys = self._build_system_config(config_file)
 
     def _build_box_config(self, config_file) -> BoxConfig:
         """
         Builds the box config from the config file. Mainly concerned with the frequency boxes.
         """
         conf = BoxConfig()
-        section = config_file["box_sizes"]
+        try:
+            section = config_file["box_sizes"]
+        except KeyError:
+            config.logger.info(f"'box_sizes' section not found. Using default values.")
+            return conf
 
-        conf.niw_core = self._try_parse(section, "niw_core", -1)
-        conf.niv_core = self._try_parse(section, "niv_core", -1)
-        conf.niv_shell = self._try_parse(section, "niv_shell", 0)
+        conf.niw_core = self._try_parse(section, "niw_core", conf.niw_core)
+        conf.niv_core = self._try_parse(section, "niv_core", conf.niv_core)
+        conf.niv_shell = self._try_parse(section, "niv_shell", conf.niv_shell)
         if conf.niv_shell <= 0:
             config.logger.info(f"'niv_shell' is set to {conf.niv_shell}. No asymptotics will be used.")
             conf.niv_shell = 0
@@ -92,15 +96,19 @@ class ConfigParser:
         Builds the lattice config from the config file. Mainly concerned with the lattice and interaction input.
         """
         conf = LatticeConfig()
-        section = config_file["lattice"]
+        try:
+            section = config_file["lattice"]
+        except KeyError:
+            config.logger.info(f"'lattice' section not found. Using default values.")
+            return conf
 
-        conf.nk = self._try_parse(section, "nk", (16, 16, 1))
+        conf.nk = self._try_parse(section, "nk", conf.nk)
 
         if "nq" not in section:
             config.logger.info("'nq' not set in config. Setting 'nq' = 'nk'.")
             conf.nq = conf.nk
         else:
-            conf.nq = self._try_parse(section, "nq", (16, 16, 1))
+            conf.nq = self._try_parse(section, "nq", conf.nq)
 
         symmetries = self._try_parse(section, "symmetries", "two_dimensional_square")
         conf.symmetries = bz.get_lattice_symmetries_from_string(symmetries)
@@ -108,13 +116,12 @@ class ConfigParser:
         conf.k_grid = bz.KGrid(conf.nk, conf.symmetries)
         conf.q_grid = bz.KGrid(conf.nq, conf.symmetries)
 
-        conf.type = self._try_parse(section, "type", "from_wannier90")
+        conf.type = self._try_parse(section, "type", conf.type)
         conf.er_input = section["hr_input"]  # can be multiple types
 
-        conf.interaction_type = self._try_parse(section, "interaction_type", "one_band_from_dmft")
-        conf.interaction_input = section["interaction_input"]  # can be multiple types
-
-        conf.orbital_basis = self._try_parse(section, "orbital_basis", "")
+        conf.interaction_type = self._try_parse(section, "interaction_type", conf.interaction_type)
+        conf.interaction_input = self._try_parse(section, "interaction_input", conf.interaction_input)
+        conf.orbital_basis = self._try_parse(section, "orbital_basis", conf.orbital_basis)
 
         return conf
 
@@ -123,14 +130,18 @@ class ConfigParser:
         Builds the DMFT config from the config file. Mainly concerned with input data.
         """
         conf = DmftConfig()
-        section = config_file["dmft_input"]
+        try:
+            section = config_file["dmft_input"]
+        except KeyError:
+            config.logger.info(f"'dmft_input' section not found. Using default values.")
+            return conf
 
-        conf.type = self._try_parse(section, "type", "w2dyn")
-        conf.input_path = self._try_parse(section, "input_path", "./")
-        conf.fname_1p = self._try_parse(section, "fname_1p", "1p-data.hdf5")
-        conf.fname_2p = self._try_parse(section, "fname_2p", "g4iw_sym.hdf5")
-        conf.do_sym_v_vp = self._try_parse(section, "do_sym_v_vp", True)
-        conf.symmetrize_orbitals = self._try_parse(section, "symmetrize_orbitals", [])
+        conf.type = self._try_parse(section, "type", conf.type)
+        conf.input_path = self._try_parse(section, "input_path", conf.input_path)
+        conf.fname_1p = self._try_parse(section, "fname_1p", conf.fname_1p)
+        conf.fname_2p = self._try_parse(section, "fname_2p", conf.fname_2p)
+        conf.do_sym_v_vp = self._try_parse(section, "do_sym_v_vp", conf.do_sym_v_vp)
+        conf.symmetrize_orbitals = self._try_parse(section, "symmetrize_orbitals", conf.symmetrize_orbitals)
 
         return conf
 
@@ -145,12 +156,16 @@ class ConfigParser:
         Builds the output config from the config file. Mainly concerned with plotting and saving quantities.
         """
         conf = OutputConfig()
-        section = config_file["output"]
+        try:
+            section = config_file["output"]
+        except KeyError:
+            config.logger.info(f"'output' section not found. Using default values.")
+            return conf
 
-        conf.do_plotting = self._try_parse(section, "do_plotting", True)
-        conf.plotting_subfolder_name = self._try_parse(section, "plotting_subfolder_name", "Plots")
-        conf.save_quantities = self._try_parse(section, "save_quantities", True)
-        conf.output_path = self._try_parse(section, "output_path", "./")
+        conf.do_plotting = self._try_parse(section, "do_plotting", conf.do_plotting)
+        conf.plotting_subfolder_name = self._try_parse(section, "plotting_subfolder_name", conf.plotting_subfolder_name)
+        conf.save_quantities = self._try_parse(section, "save_quantities", conf.save_quantities)
+        conf.output_path = self._try_parse(section, "output_path", conf.output_path)
 
         if not conf.output_path or conf.output_path == "":
             config.logger.info(f"'output_path' not set in config. Setting 'output_path' = '{config.dmft.input_path}'.")
@@ -158,63 +173,81 @@ class ConfigParser:
 
         return conf
 
-    def _build_self_consistency_config(self, conf_file) -> SelfConsistencyConfig:
+    def _build_self_consistency_config(self, config_file) -> SelfConsistencyConfig:
         """
         Builds the self-consistency config from the config file. Mainly concerned with the self-consistency loop.
         """
         conf = SelfConsistencyConfig()
-        section = conf_file["self_consistency"]
+        try:
+            section = config_file["self_consistency"]
+        except KeyError:
+            config.logger.info(f"'self_consistency' section not found. Using default values.")
+            return conf
 
-        conf.max_iter = self._try_parse(section, "max_iter", 20)
-        conf.save_iter = self._try_parse(section, "save_iter", True)
-        conf.epsilon = self._try_parse(section, "epsilon", 1e-4)
-        conf.mixing = self._try_parse(section, "mixing", 0.2)
-        conf.mixing_strategy = self._try_parse(section, "mixing_strategy", "linear")
-        conf.mixing_history_length = self._try_parse(section, "mixing_history_length", 3)
-        conf.previous_sc_path = self._try_parse(section, "previous_sc_path", "./")
-        conf.use_lambda_correction = self._try_parse(section, "use_lambda_correction", False)
-        conf.restrict_chi_phys = self._try_parse(section, "restrict_chi_phys", False)
+        conf.max_iter = self._try_parse(section, "max_iter", conf.max_iter)
+        conf.save_iter = self._try_parse(section, "save_iter", conf.save_iter)
+        conf.epsilon = self._try_parse(section, "epsilon", conf.epsilon)
+        conf.mixing = self._try_parse(section, "mixing", conf.mixing)
+        conf.mixing_strategy = self._try_parse(section, "mixing_strategy", conf.mixing_strategy)
+        conf.mixing_history_length = self._try_parse(section, "mixing_history_length", conf.mixing_history_length)
+        conf.previous_sc_path = self._try_parse(section, "previous_sc_path", conf.previous_sc_path)
+        conf.use_lambda_correction = self._try_parse(section, "use_lambda_correction", conf.use_lambda_correction)
+        conf.restrict_chi_phys = self._try_parse(section, "restrict_chi_phys", conf.restrict_chi_phys)
 
         return conf
 
-    def _build_eliashberg_config(self, conf_file) -> EliashbergConfig:
+    def _build_eliashberg_config(self, config_file) -> EliashbergConfig:
         """
         Builds the Eliashberg config from the config file. Mainly concerned with the Eliashberg equation.
         """
         conf = EliashbergConfig()
-        section = conf_file["eliashberg"]
+        try:
+            section = config_file["eliashberg"]
+        except KeyError:
+            config.logger.info(f"'eliashberg' section not found. Using default values.")
+            return conf
 
-        conf.perform_eliashberg = self._try_parse(section, "perform_eliashberg", False)
-        conf.save_pairing_vertex = self._try_parse(section, "save_pairing_vertex", False)
-        conf.save_fq = self._try_parse(section, "save_fq", False)
-        conf.construct_fq_cheap = self._try_parse(section, "construct_fq_cheap", False)
-        conf.n_eig = self._try_parse(section, "n_eig", 2)
-        conf.epsilon = self._try_parse(section, "epsilon", 1e-6)
-        conf.symmetry = self._try_parse(section, "symmetry", "random")
-        conf.subfolder_name = self._try_parse(section, "subfolder_name", "Eliashberg")
-        conf.include_local_part = self._try_parse(section, "include_local_part", True)
+        conf.perform_eliashberg = self._try_parse(section, "perform_eliashberg", conf.perform_eliashberg)
+        conf.save_pairing_vertex = self._try_parse(section, "save_pairing_vertex", conf.save_pairing_vertex)
+        conf.save_fq = self._try_parse(section, "save_fq", conf.save_fq)
+        conf.construct_fq_cheap = self._try_parse(section, "construct_fq_cheap", conf.construct_fq_cheap)
+        conf.n_eig = self._try_parse(section, "n_eig", conf.n_eig)
+        conf.epsilon = self._try_parse(section, "epsilon", conf.epsilon)
+        conf.symmetry = self._try_parse(section, "symmetry", conf.symmetry)
+        conf.include_local_part = self._try_parse(section, "include_local_part", conf.include_local_part)
+        conf.subfolder_name = self._try_parse(section, "subfolder_name", conf.subfolder_name)
 
         return conf
 
-    def _build_lambda_correction_config(self, conf_file):
+    def _build_lambda_correction_config(self, config_file):
         conf = LambdaCorrectionConfig()
-        section = conf_file["lambda_correction"]
+        try:
+            section = config_file["lambda_correction"]
+        except KeyError:
+            config.logger.info(f"'lambda_correction' section not found. Using default values.")
+            return conf
 
-        conf.perform_lambda_correction = self._try_parse(section, "perform_lambda_correction", False)
-        conf.type = self._try_parse(section, "type", "spch")
+        conf.perform_lambda_correction = self._try_parse(
+            section, "perform_lambda_correction", conf.perform_lambda_correction
+        )
+        conf.type = self._try_parse(section, "type", conf.type)
 
         return conf
 
-    def _build_self_energy_interpolation_config(self, conf_file):
+    def _build_self_energy_interpolation_config(self, config_file):
         """
         Builds the self-energy interpolation config from the config file.
         """
         conf = SelfEnergyInterpolationConfig()
-        section = conf_file["self_energy_interpolation"]
+        try:
+            section = config_file["self_energy_interpolation"]
+        except KeyError:
+            config.logger.info(f"'self_energy_interpolation' section not found. Using default values.")
+            return conf
 
-        conf.do_interpolation = self._try_parse(section, "do_interpolation", False)
-        conf.beta_target = self._try_parse(section, "target_beta", 1.0)
-        conf.niv_target = self._try_parse(section, "target_niv", 10)
+        conf.do_interpolation = self._try_parse(section, "do_interpolation", conf.do_interpolation)
+        conf.beta_target = self._try_parse(section, "target_beta", conf.beta_target)
+        conf.niv_target = self._try_parse(section, "target_niv", conf.niv_target)
 
         return conf
 
