@@ -232,19 +232,18 @@ def calculate_sigma_kernel_r_q(
         f"Physical susceptibility ({chi_phys_q_r.channel.value})", chi_phys_q_r, mpi_dist_irrq.comm.size
     )
 
-    if config.lambda_correction.perform_lambda_correction or config.output.save_quantities:
-        chi_phys_q_r.mat = mpi_dist_irrq.gather(chi_phys_q_r.mat)
-        if mpi_dist_irrq.comm.rank == 0:
-            if config.lambda_correction.perform_lambda_correction:
-                chi_phys_q_r = perform_lambda_correction(chi_phys_q_r)
-            chi_phys_q_r.save(name=f"chi_phys_q_{chi_phys_q_r.channel.value}", output_dir=config.output.output_path)
+    chi_phys_q_r.mat = mpi_dist_irrq.gather(chi_phys_q_r.mat)
+    if mpi_dist_irrq.comm.rank == 0:
+        if config.lambda_correction.perform_lambda_correction:
+            chi_phys_q_r = perform_lambda_correction(chi_phys_q_r)
+        chi_phys_q_r.save(name=f"chi_phys_q_{chi_phys_q_r.channel.value}", output_dir=config.output.output_path)
 
-            # perform Ornstein-Zernicke fit
-            if chi_phys_q_r.channel == SpinChannel.MAGN:
-                perform_ornstein_zernicke_fit(chi_phys_q_r)
+        # perform Ornstein-Zernicke fit
+        if chi_phys_q_r.channel == SpinChannel.MAGN:
+            perform_ornstein_zernicke_fit(chi_phys_q_r)
 
-        chi_phys_q_r.mat = mpi_dist_irrq.scatter(chi_phys_q_r.mat)
-        logger.info(f"Saved physical susceptibility ({chi_phys_q_r.channel.value}) to file.")
+    chi_phys_q_r.mat = mpi_dist_irrq.scatter(chi_phys_q_r.mat)
+    logger.info(f"Saved physical susceptibility ({chi_phys_q_r.channel.value}) to file.")
 
     if config.eliashberg.perform_eliashberg:
         chi_phys_q_r.save(
@@ -283,9 +282,8 @@ def perform_lambda_correction(chi_phys_q_r: FourPoint) -> FourPoint:
             f"Lambda correction for the {chi_phys_q_r.channel.value} channel applied with lambda = {lambda_r:.6f}."
         )
 
-        if config.output.save_quantities:
-            with open(os.path.join(config.output.output_path, f"lambda_{config.lambda_correction.type}.txt"), "a") as f:
-                f.write(f"lambda_{chi_phys_q_r.channel.value}: {lambda_r}\n")
+        with open(os.path.join(config.output.output_path, f"lambda_{config.lambda_correction.type}.txt"), "a") as f:
+            f.write(f"lambda_{chi_phys_q_r.channel.value}: {lambda_r}\n")
 
         return chi_phys_q_r
 
@@ -315,9 +313,8 @@ def perform_lambda_correction(chi_phys_q_r: FourPoint) -> FourPoint:
     chi_phys_q_r, lambda_r = lc.perform_single_lambda_correction(chi_phys_q_r, chi_magn_loc_sum / config.sys.beta)
     logger.info(f"Lambda correction 'sp' applied. Lambda for magn channel is: {lambda_r:.6f}.")
 
-    if config.output.save_quantities:
-        with open(os.path.join(config.output.output_path, f"lambda_{config.lambda_correction.type}.txt"), "a") as f:
-            f.write(f"lambda_{chi_phys_q_r.channel.value}: {lambda_r}\n")
+    with open(os.path.join(config.output.output_path, f"lambda_{config.lambda_correction.type}.txt"), "a") as f:
+        f.write(f"lambda_{chi_phys_q_r.channel.value}: {lambda_r}\n")
 
     return chi_phys_q_r
 
@@ -654,7 +651,7 @@ def calculate_self_energy_q(
         logger.info("Applying mixing strategy to the self-energy.")
         sigma_new = apply_mixing_strategy(sigma_new, sigma_old, sigma_dmft, current_iter)
 
-        if config.self_consistency.save_iter and config.output.save_quantities and comm.rank == 0:
+        if comm.rank == 0:
             sigma_new.save(name=f"sigma_dga_iteration_{current_iter}", output_dir=config.output.output_path)
             logger.info(f"Saved sigma for iteration {current_iter} as numpy array.")
 
@@ -700,9 +697,8 @@ def calculate_self_energy_q(
     mpi_dist_irrk.delete_file()
     mpi_dist_fullbz.delete_file()
 
-    if config.output.save_quantities:
-        np.save(os.path.join(config.output.output_path, "mu_history.npy"), mu_history)
-        logger.info("Saved mu history as numpy array.")
+    np.save(os.path.join(config.output.output_path, "mu_history.npy"), mu_history)
+    logger.info("Saved mu history as numpy array.")
 
     return sigma_old
 
@@ -718,12 +714,7 @@ def apply_mixing_strategy(
     n_hist = config.self_consistency.mixing_history_length
     alpha = config.self_consistency.mixing
 
-    if (
-        config.self_consistency.mixing_strategy == "pulay"
-        and current_iter > n_hist
-        and config.self_consistency.save_iter
-        and config.output.save_quantities
-    ):
+    if config.self_consistency.mixing_strategy == "pulay" and current_iter > n_hist:
         last_results = read_last_n_sigmas_from_files(
             n_hist, config.output.output_path, config.self_consistency.previous_sc_path
         )
@@ -781,12 +772,7 @@ def apply_mixing_strategy(
         )
 
         return sigma_new
-    if (
-        config.self_consistency.mixing_strategy == "anderson"
-        and current_iter > n_hist
-        and config.self_consistency.save_iter
-        and config.output.save_quantities
-    ):
+    if config.self_consistency.mixing_strategy == "anderson" and current_iter > n_hist:
         last_sigmas = read_last_n_sigmas_from_files(
             n_hist, config.output.output_path, config.self_consistency.previous_sc_path
         )

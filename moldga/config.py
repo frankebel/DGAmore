@@ -79,7 +79,6 @@ class SelfConsistencyConfig:
 
     def __init__(self):
         self.max_iter: int = 20
-        self.save_iter: bool = True
         self.epsilon: float = 1e-4
         self.mixing: float = 0.2
         self.mixing_strategy: str = "linear"
@@ -175,7 +174,6 @@ class OutputConfig:
 
     def __init__(self):
         self.output_path: str = ""
-        self.save_quantities: bool = True
         self.do_plotting: bool = True
         self.plotting_path: str = "./Plots/"
         self.plotting_subfolder_name: str = "Plots"

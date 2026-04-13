@@ -167,7 +167,6 @@ def cfg(tmp_path):
     cfg.output = Dummy()
     cfg.output.output_path = str(tmp_path)
     cfg.output.plotting_subfolder_name = "Plots"
-    cfg.output.save_quantities = False
     cfg.output.do_plotting = False
 
     cfg.eliashberg = Dummy()

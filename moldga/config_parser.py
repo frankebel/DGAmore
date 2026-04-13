@@ -164,7 +164,6 @@ class ConfigParser:
 
         conf.do_plotting = self._try_parse(section, "do_plotting", conf.do_plotting)
         conf.plotting_subfolder_name = self._try_parse(section, "plotting_subfolder_name", conf.plotting_subfolder_name)
-        conf.save_quantities = self._try_parse(section, "save_quantities", conf.save_quantities)
         conf.output_path = self._try_parse(section, "output_path", conf.output_path)
 
         if not conf.output_path or conf.output_path == "":
@@ -185,7 +184,6 @@ class ConfigParser:
             return conf
 
         conf.max_iter = self._try_parse(section, "max_iter", conf.max_iter)
-        conf.save_iter = self._try_parse(section, "save_iter", conf.save_iter)
         conf.epsilon = self._try_parse(section, "epsilon", conf.epsilon)
         conf.mixing = self._try_parse(section, "mixing", conf.mixing)
         conf.mixing_strategy = self._try_parse(section, "mixing_strategy", conf.mixing_strategy)
