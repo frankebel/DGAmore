@@ -40,7 +40,6 @@ def setup_srvo3_cubic():
         c.box.niw_core = -1
         c.box.niv_core = -1
         c.box.niv_shell = 0
-        c.output.save_quantities = False
         c.output.do_plotting = False
         c.lattice.nk = (12, 12, 12)
         c.lattice.nq = config.lattice.nk

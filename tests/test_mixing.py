@@ -41,8 +41,6 @@ def make_config_mock(
     strategy: str = "linear",
     mixing: float = 0.5,
     n_hist: int = 3,
-    save_iter: bool = True,
-    save_quantities: bool = True,
     niv_core: int = NIV_CORE,
     nk_tot: int = 1,
     output_path: str = "./",
@@ -55,9 +53,7 @@ def make_config_mock(
     cfg.self_consistency.mixing_strategy = strategy
     cfg.self_consistency.mixing = mixing
     cfg.self_consistency.mixing_history_length = n_hist
-    cfg.self_consistency.save_iter = save_iter
     cfg.self_consistency.previous_sc_path = previous_sc_path
-    cfg.output.save_quantities = save_quantities
     cfg.output.output_path = output_path
     cfg.box.niv_core = niv_core
     cfg.lattice.k_grid.nk_tot = nk_tot
@@ -177,30 +173,6 @@ def test_pulay_falls_back_to_linear_when_iter_too_small():
     np.testing.assert_allclose(result.mat, 1.0, atol=1e-5)
 
 
-def test_pulay_falls_back_to_linear_when_save_iter_false():
-    """Pulay requires save_iter=True, otherwise falls back to linear."""
-    sigma_new = make_sigma(2.0)
-    sigma_old = make_sigma(0.0)
-    sigma_dmft = make_sigma(0.0)
-
-    with patch_config(strategy="pulay", mixing=0.5, n_hist=3, save_iter=False):
-        result = apply_mixing_strategy(sigma_new, sigma_old, sigma_dmft, current_iter=10)
-
-    np.testing.assert_allclose(result.mat, 1.0, atol=1e-5)
-
-
-def test_pulay_falls_back_to_linear_when_save_quantities_false():
-    """Pulay requires save_quantities=True, otherwise falls back to linear."""
-    sigma_new = make_sigma(2.0)
-    sigma_old = make_sigma(0.0)
-    sigma_dmft = make_sigma(0.0)
-
-    with patch_config(strategy="pulay", mixing=0.5, n_hist=3, save_quantities=False):
-        result = apply_mixing_strategy(sigma_new, sigma_old, sigma_dmft, current_iter=10)
-
-    np.testing.assert_allclose(result.mat, 1.0, atol=1e-5)
-
-
 def test_pulay_returns_self_energy_instance():
     """Pulay mixing must return a SelfEnergy instance."""
     sigma_new = make_sigma(2.0)
@@ -304,30 +276,6 @@ def test_anderson_falls_back_to_linear_when_iter_too_small():
 
     with patch_config(strategy="anderson", mixing=0.5, n_hist=5):
         result = apply_mixing_strategy(sigma_new, sigma_old, sigma_dmft, current_iter=3)
-
-    np.testing.assert_allclose(result.mat, 1.0, atol=1e-5)
-
-
-def test_anderson_falls_back_to_linear_when_save_iter_false():
-    """Anderson requires save_iter=True, otherwise falls back to linear."""
-    sigma_new = make_sigma(2.0)
-    sigma_old = make_sigma(0.0)
-    sigma_dmft = make_sigma(0.0)
-
-    with patch_config(strategy="anderson", mixing=0.5, n_hist=3, save_iter=False):
-        result = apply_mixing_strategy(sigma_new, sigma_old, sigma_dmft, current_iter=10)
-
-    np.testing.assert_allclose(result.mat, 1.0, atol=1e-5)
-
-
-def test_anderson_falls_back_to_linear_when_save_quantities_false():
-    """Anderson requires save_quantities=True, otherwise falls back to linear."""
-    sigma_new = make_sigma(2.0)
-    sigma_old = make_sigma(0.0)
-    sigma_dmft = make_sigma(0.0)
-
-    with patch_config(strategy="anderson", mixing=0.5, n_hist=3, save_quantities=False):
-        result = apply_mixing_strategy(sigma_new, sigma_old, sigma_dmft, current_iter=10)
 
     np.testing.assert_allclose(result.mat, 1.0, atol=1e-5)
 

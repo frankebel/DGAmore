@@ -43,7 +43,6 @@ def create_default_config(config, folder: str):
     config.box.niw_core = -1
     config.box.niv_core = -1
     config.box.niv_shell = 10
-    config.output.save_quantities = False
     config.output.do_plotting = False
     config.lattice.nk = (4, 4, 1)
     config.lattice.nq = config.lattice.nk

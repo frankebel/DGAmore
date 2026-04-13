@@ -193,8 +193,7 @@ def create_local_ud_diagrams_pp_w0(g_loc: GreensFunction) -> Tuple[LocalFourPoin
         (gchi_ud_loc_pp_w0 - gchi0_loc_pp_w0).invert() + gchi0_loc_pp_w0.invert()
     )
 
-    if config.output.save_quantities:
-        gamma_ud_loc_pp_w0.save(output_dir=config.output.eliashberg_path, name="gamma_ud_loc_pp_w0")
+    gamma_ud_loc_pp_w0.save(output_dir=config.output.eliashberg_path, name="gamma_ud_loc_pp_w0")
 
     f_dens_loc = LocalFourPoint.load(os.path.join(config.output.output_path, f"f_dens_loc.npy"), SpinChannel.DENS)
     f_magn_loc = LocalFourPoint.load(os.path.join(config.output.output_path, f"f_magn_loc.npy"), SpinChannel.MAGN)
@@ -394,11 +393,10 @@ def solve(
         if config.eliashberg.include_local_part:
             f_ud_loc_pp_w0, gamma_ud_loc_pp_w0, phi_ud_loc_pp_w0 = create_local_ud_diagrams_pp_w0(g_loc)
 
-            if config.output.save_quantities:
-                f_ud_loc_pp_w0.save(output_dir=config.output.eliashberg_path, name="f_ud_loc_pp_w0")
-                phi_ud_loc_pp_w0.save(output_dir=config.output.eliashberg_path, name="phi_ud_loc_pp_w0")
-                gamma_ud_loc_pp_w0.save(output_dir=config.output.eliashberg_path, name="gamma_ud_loc_pp_w0")
-                logger.info("Saved local ud diagrams in pp notation to file.")
+            f_ud_loc_pp_w0.save(output_dir=config.output.eliashberg_path, name="f_ud_loc_pp_w0")
+            phi_ud_loc_pp_w0.save(output_dir=config.output.eliashberg_path, name="phi_ud_loc_pp_w0")
+            gamma_ud_loc_pp_w0.save(output_dir=config.output.eliashberg_path, name="gamma_ud_loc_pp_w0")
+            logger.info("Saved local ud diagrams in pp notation to file.")
 
             del f_ud_loc_pp_w0, gamma_ud_loc_pp_w0
 

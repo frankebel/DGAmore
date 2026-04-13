@@ -74,7 +74,7 @@ def execute_dga_routine():
     logger.log_memory_usage("g_dmft & sigma_dmft", g_dmft, 2 * comm.size)
     logger.log_memory_usage("g2_dens & g2_magn", g2_dens, 2)
 
-    if config.output.save_quantities and comm.rank == 0:
+    if comm.rank == 0:
         sigma_dmft.save(name="sigma_dmft", output_dir=config.output.output_path)
         g_dmft.save(name="g_dmft", output_dir=config.output.output_path)
         logger.info("Saved sigma_dmft as numpy file.")
@@ -109,11 +109,11 @@ def execute_dga_routine():
 
     logger.info("Local Schwinger-Dyson equation (SDE) done.")
 
-    if (config.lambda_correction.perform_lambda_correction or config.output.save_quantities) and comm.rank == 0:
+    if (config.lambda_correction.perform_lambda_correction) and comm.rank == 0:
         chi_d.save(name="chi_dens_loc", output_dir=config.output.output_path)
         chi_m.save(name="chi_magn_loc", output_dir=config.output.output_path)
 
-    if config.output.save_quantities and comm.rank == 0:
+    if comm.rank == 0:
         g2_dens.save(name="g2_dens_loc", output_dir=config.output.output_path)
         g2_magn.save(name="g2_magn_loc", output_dir=config.output.output_path)
         del g2_dens, g2_magn
@@ -200,7 +200,7 @@ def execute_dga_routine():
         config.box.niv_full + config.box.niw_core
     )
 
-    if config.output.save_quantities and comm.rank == 0:
+    if comm.rank == 0:
         sigma_dga.save(name=f"sigma_dga", output_dir=config.output.output_path)
         logger.info("Saved non-local self-energy as numpy file.")
 
@@ -255,7 +255,7 @@ def execute_dga_routine():
             giwk_dga, g_loc, u_loc, v_nonloc, comm
         )
 
-        if config.output.save_quantities and comm.rank == 0:
+        if comm.rank == 0:
             np.savetxt(
                 os.path.join(config.output.eliashberg_path, "eigenvalues.txt"),
                 [lambdas_sing.real, lambdas_trip.real],
