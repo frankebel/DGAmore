@@ -4,7 +4,6 @@
 # moLDGA — Multi-Orbital Ladder Dynamical Vertex Approximation (LDGA) &
 #          Eliashberg Equation Solver for Strongly Correlated Electron Systems
 
-import itertools
 import itertools as it
 from copy import deepcopy
 

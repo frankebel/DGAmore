@@ -149,7 +149,7 @@ def perform_ornstein_zernicke_fit(chi_phys_q_r: FourPoint) -> None:
 
     def fit_oz_spin(q_grid: KGrid, mat: np.ndarray):
         initial_guess = (mat.max(), 2.0)
-        return opt.curve_fit(oz_spin_w0, q_grid, mat, p0=initial_guess)
+        return opt.curve_fit(oz_spin_w0, q_grid, mat, p0=initial_guess)[0]
 
     chi = deepcopy(chi_phys_q_r)
     chi_mat = chi.map_to_full_bz(config.lattice.q_grid).to_half_niw_range().take_first_wn().mat.real
@@ -159,7 +159,7 @@ def perform_ornstein_zernicke_fit(chi_phys_q_r: FourPoint) -> None:
     for idx in np.ndindex(orb_shape):
         mat_slice = chi_mat[..., idx[0], idx[1], idx[2], idx[3]].flatten()
         try:
-            coeffs, _ = fit_oz_spin(config.lattice.q_grid, mat_slice)
+            coeffs = fit_oz_spin(config.lattice.q_grid, mat_slice) if not np.all(mat_slice == 0) else [0.0, 0.0]
         except (ValueError, RuntimeError, opt.OptimizeWarning):
             config.logger.warning(f"OZ fit did not converge for orbitals {idx}. Using [-1, -1].")
             coeffs = [-1.0, -1.0]
@@ -559,7 +559,14 @@ def calculate_self_energy_q(
 
         logger.log_memory_usage("giwk", giwk_full, comm.size)
         gchi0_q = BubbleGenerator.create_generalized_chi0_q_auto(
-            mpi_dist_irrk, giwk_full, config.box.niw_core, config.box.niv_full, my_irr_q_list
+            mpi_dist_irrk,
+            giwk_full,
+            config.box.niw_core,
+            config.box.niv_full,
+            my_irr_q_list,
+            config.lattice.q_grid,
+            config.sys.beta,
+            config.logger,
         )
 
         if config.eliashberg.perform_eliashberg:

@@ -156,6 +156,7 @@ def execute_dga_routine():
         plotting.chi_checks(
             [chi_d.mat],
             [chi_m.mat],
+            config.sys.beta,
             ["Loc-tilde"],
             g_loc.e_kin,
             name="loc",
