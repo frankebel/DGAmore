@@ -22,6 +22,12 @@ def mock_does_not_delete_files(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def mock_does_not_create_folders(monkeypatch):
+    # Make os.remove do nothing
+    monkeypatch.setattr(os, "makedirs", lambda path: None)
+
+
+@pytest.fixture(autouse=True)
 def mock_numpy_save(monkeypatch):
     # Automatically mock numpy.save for all tests.
     def fake_save(file, arr, **kwargs):
