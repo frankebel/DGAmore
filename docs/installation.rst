@@ -2,7 +2,7 @@ Installation
 ============
 
 DGAmore supports Python 3.12 and newer and is distributed as an installable package. It is developed and
-continuously tested on Linux and macOS with Python 3.12, 3.13 and 3.14; Windows is not supported. Because the code
+continuously tested on Linux and macOS with Python 3.12, 3.13, 3.14 and 3.15; Windows is not supported. Because the code
 relies on MPI for parallelization, the installation needs a working MPI implementation in addition to the Python
 dependencies.
 
