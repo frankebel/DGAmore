@@ -55,7 +55,7 @@ For the implemented equations, see the author's
 # Quick start
 
 `DGAmore` needs Python 3.12 or newer and a working MPI installation; it is tested on Linux and macOS with Python 3.12
-to 3.14 (Windows is not supported). Install `mpich` and `mpi4py`, then the package:
+to 3.15 (Windows is not supported). Install `mpich` and `mpi4py`, then the package:
 
 ```bash
 conda install -c conda-forge mpich mpi4py

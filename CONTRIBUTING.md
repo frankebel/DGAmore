@@ -80,7 +80,7 @@ When you would like to contribute code, the following workflow keeps things smoo
 
 A continuous integration pipeline runs on every pull request. Independent workflows check that the code is
 Black-formatted, build the documentation, spell-check the sources, and run the full test suite across Python 3.12 to
-3.14 on both Linux and macOS. This is there to catch regressions, not to be a
+3.15 on both Linux and macOS. This is there to catch regressions, not to be a
 gatekeeper, so please do not worry if something turns red on the first try; it is a normal part of the process, and we
 are glad to help you get it passing. The pipeline also requires the overall test coverage to stay at **at least 85%**,
 and the build fails if it drops below that threshold. Beyond the overall figure, the new or changed code in a pull
