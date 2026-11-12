@@ -288,7 +288,8 @@ separate momentum axes.
      - Array layout
    * - ``chi_phys_q_dens.npy``, ``chi_phys_q_magn.npy``
      - Physical ladder susceptibility :math:`\chi^{\mathrm{q}}_{\mathrm{r}}` after the lambda correction (the RPA
-       susceptibility with ``misc.do_flex`` or ``misc.do_rpa``)
+       susceptibility with ``misc.do_flex`` or ``misc.do_rpa``) of the latest iteration; without a lambda correction
+       written once after the self-consistency loop
      - ``[nq_irr, no, no, no, no, niw_core + 1]``
    * - ``chi_rpa_q_dens.npy``, ``chi_rpa_q_magn.npy``
      - RPA susceptibility, written once in the first iteration: of the bubble summed over all frequencies with
@@ -308,7 +309,8 @@ separate momentum axes.
      - Lattice Green's function built from the DMFT self-energy (written when ``do_spectrum_dmft`` is enabled)
      - ``[nkx, nky, nkz, no, no, 2 niv]``
    * - ``Sigma_Iterates/sigma_dga_iteration_<i>.npy``
-     - Self-energy after self-consistency iteration ``i`` (also read back when a run is resumed)
+     - Self-energy after self-consistency iteration ``i`` (also read back when a run is resumed; only the last
+       iteration's is kept with ``save_sigma_iterates: False``)
      - ``[nkx, nky, nkz, no, no, 2 niv]``
    * - | ``sigma_dga_interpolated``
        | ``_beta<b>_niv<n>.npy``
@@ -470,8 +472,8 @@ The analytic continuation and a few diagnostics do not follow the n-point layout
      - DMFT orbital spectral matrix in the same layout (written when ``do_spectrum_dmft`` is enabled)
      - ``[nk_irr, no, no, w_count]``
    * - ``oz_coeff.txt``
-     - Ornstein-Zernike fit of the magnetic susceptibility, one line per orbital combination with the columns
-       ``o1 o2 o3 o4 A xi``
+     - Ornstein-Zernike fit of the static magnetic susceptibility of the final iteration, written once after the
+       self-consistency loop, one line per orbital combination with the columns ``o1 o2 o3 o4 A xi``
      - text
    * - ``eigenvalues.txt``
      - Leading Eliashberg eigenvalues, one comma-separated line per channel and parity sector

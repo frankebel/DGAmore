@@ -551,13 +551,20 @@ def create_local_gamma_ud_pp_w0(
     subtracts that term in the density channel, and the :math:`\frac{1}{2}(\chi^{\mathrm{ph}}_{d} -
     \chi^{\mathrm{ph}}_{m})` combination cancels both it and the vertical bubble exactly.
 
-    :math:`J` commutes with every pp object by crossing symmetry, so this is the full-space form of inverting the
-    decoupled singlet/triplet BSEs (thesis Eqs. 3.51/3.52) on their :math:`J`-even/odd blocks. For a single band
-    :math:`J` reduces to the plain frequency flip and the expression is equivalent to Eq. (B.26) of Rohringer's thesis.
-    Assumes :math:`G^{\mathrm{DMFT}}_{12}(\nu) = G^{\mathrm{DMFT}}_{21}(\nu)` (real orbital basis, no spin-orbit
-    coupling); with SOC the rung :math:`\chi^{\mathrm{pp}}_0 J` must be replaced by :math:`-\beta\,
-    G^{\mathrm{DMFT}}_{12}(\nu)\, G^{\mathrm{DMFT}}_{43}(-\nu)\, \delta_{\nu,-\nu'}` (second Green's function
-    transposed).
+    In the pair basis that keeps the up and down lines apart, i.e. for the matrices
+    :math:`S[X]_{(13\nu),(24\nu')} = X^{\mathrm{pp};\nu(-\nu')}_{1234}` with the ordinary matrix product and inverse,
+    the expression is the up-down pp Bethe-Salpeter equation in the form of the ph one,
+
+    .. math:: S[\Gamma^{\mathrm{pp}}_{\uparrow\downarrow}] = \beta^2 \left( S[\chi^{\mathrm{pp}}_{\uparrow\downarrow}
+        - \chi^{\mathrm{pp}}_0 J]^{-1} - S[-\chi^{\mathrm{pp}}_0 J]^{-1} \right),
+
+    where :math:`-\chi^{\mathrm{pp}}_0 J` is the disconnected straight term of the up-down susceptibility in pp
+    notation. Only :math:`J \chi^{\mathrm{pp}}_0 J = \chi^{\mathrm{pp}}_0` enters, which holds for any Green's
+    function: neither :math:`G^{\mathrm{DMFT}}_{12}(\nu) = G^{\mathrm{DMFT}}_{21}(\nu)` nor crossing symmetry of
+    :math:`\chi^{\mathrm{pp}}_{\uparrow\downarrow}` is assumed. For a crossing-symmetric susceptibility :math:`J`
+    commutes with every pp object, so this is also the full-space form of inverting the decoupled singlet/triplet BSEs
+    (thesis Eqs. 3.51/3.52) on their :math:`J`-even/odd blocks. For a single band :math:`J` reduces to the plain
+    frequency flip and the expression is equivalent to Eq. (B.26) of Rohringer's thesis.
 
     :param gchi_ud_pp_w0: The local connected up-down susceptibility
         :math:`\chi^{\mathrm{pp};\nu\nu'}_{\uparrow\downarrow;1234}` in pp notation at :math:`\omega = 0`, see
@@ -655,9 +662,8 @@ def create_local_ud_diagrams_pp_w0(
     :meth:`~dgamore.local_four_point.LocalFourPoint.change_frequency_notation_ph_to_pp_w0` (ph legs evaluated at
     :math:`\omega_{\mathrm{ph}} = \nu + \nu'`) and the bare pp bubble built from the local DMFT Green's function
     :math:`G^{\mathrm{DMFT}}_{12}(\nu)` via :meth:`~dgamore.bubble_gen.BubbleGenerator.create_generalized_chi0_pp_w0`.
-    These are the local diagrams always subtracted/added to the pairing vertex; see
-    :class:`~dgamore.config.EliashbergConfig` is enabled, to avoid double counting the local pairing contribution
-    (thesis Eqs. 4.49-4.52).
+    The pairing vertex subtracts :math:`\Phi` from its ladder part, which makes it pp-irreducible, together with the
+    local full vertex of :func:`create_local_f_ud_transformed_w0`, which both ladders contain (thesis Eqs. 4.49-4.52).
 
     :param g_dmft: The local DMFT :class:`GreensFunction` :math:`G^{\mathrm{DMFT}}_{12}(\nu)`.
     :param niv_pp: Number of positive fermionic frequencies of the pp vertex; the local diagrams are cut to this
@@ -3132,7 +3138,6 @@ def dispatch_full_vertex_calculation(
 
 
 def _solve_sectors_in_memory(
-    mpi_dist_irrk: MpiDistributor,
     gamma_sing_pp: FourPoint,
     gamma_trip_pp: FourPoint,
     giwk_dga: GreensFunction,
@@ -3146,7 +3151,6 @@ def _solve_sectors_in_memory(
     through :func:`solve_eliashberg_lanczos` one after the other, each over the requested parity sectors. Both
     pairing vertices are **consumed**.
 
-    :param mpi_dist_irrk: MPI distributor over the irreducible BZ q-points (see :class:`MpiDistributor`).
     :param gamma_sing_pp: The singlet pairing vertex (the whole irreducible BZ; consumed).
     :param gamma_trip_pp: The triplet pairing vertex (the whole irreducible BZ; consumed).
     :param giwk_dga: The DGA Green's function (used to build the bubble).
@@ -3161,7 +3165,6 @@ def _solve_sectors_in_memory(
     for gamma_pp in (gamma_sing_pp, gamma_trip_pp):
         sectors = solve_eliashberg_lanczos(gamma_pp, gchi0_q_pp, (0,), parities, u)
         results.update({(gamma_pp.channel, parity): sectors[parity] for parity in parities})
-    mpi_dist_irrk.delete_file()
     return results
 
 
@@ -3203,9 +3206,7 @@ def solve(
     logger = config.logger
     import psutil
 
-    mpi_dist_irrk = MpiDistributor.create_distributor(
-        ntasks=config.lattice.k_grid.nk_irr, comm=comm, name="Q", output_path=config.output.output_path
-    )
+    mpi_dist_irrk = MpiDistributor.create_distributor(ntasks=config.lattice.k_grid.nk_irr, comm=comm)
     v_nonloc = nonlocal_sde.scatter_irreducible_interaction(v_nonloc, mpi_dist_irrk)
 
     # the check may switch the sectors off, so it runs before they are fixed
@@ -3288,8 +3289,6 @@ def solve(
 
     delete_files(config.output.eliashberg_path, f"gchi0_q_inv_rank_{comm.rank}.npy")
 
-    mpi_dist_irrk.delete_file()
-
     gamma_sing_pp = f_dens_pp.scale(0.5).sub(f_magn_pp.scale(1.5, copy=True), copy=False)
     del f_dens_pp
     gamma_sing_pp.channel = SpinChannel.SING
@@ -3365,9 +3364,7 @@ def solve(
                 results[(channel, parity)] = (lambdas, local[1] if comm.rank == 0 else [])
             sectors = None
     elif rounds is None:
-        results = _solve_sectors_in_memory(
-            mpi_dist_irrk, gamma_sing_pp, gamma_trip_pp, giwk_dga, niv_pp, parities, inversion
-        )
+        results = _solve_sectors_in_memory(gamma_sing_pp, gamma_trip_pp, giwk_dga, niv_pp, parities, inversion)
     else:
         results = _solve_sectors_in_teams(
             mpi_dist_irrk, comm, node_comm, gamma_sing_pp, gamma_trip_pp, giwk_dga, niv_pp, rounds, inversion

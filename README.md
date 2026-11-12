@@ -55,7 +55,7 @@ For the implemented equations, see the author's
 # Quick start
 
 `DGAmore` needs Python 3.12 or newer and a working MPI installation; it is tested on Linux and macOS with Python 3.12
-to 3.14 (Windows is not supported). Install `mpich` and `mpi4py`, then the package:
+to 3.15 (Windows is not supported). Install `mpich` and `mpi4py`, then the package:
 
 ```bash
 conda install -c conda-forge mpich mpi4py
@@ -64,7 +64,7 @@ cd DGAmore
 pip install .
 ```
 
-To check the installation, run `pytest tests` from the repository directory. A calculation needs three inputs: the
+To check the installation, run `pip install --group test`, then `pytest tests`. A calculation needs three inputs: the
 one- and two-particle output of a w2dynamics DMFT run (the two-particle file goes through the installed `symmetrize`
 script first), a Hamiltonian in real space (Wannier90 format) or in momentum space, and a YAML configuration file.
 Edit the configuration, then start the routine with `-p` pointing at the directory that holds it and `-c` naming it

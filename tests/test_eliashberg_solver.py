@@ -246,6 +246,29 @@ def test_local_gamma_ud_pp_w0_satisfies_decoupled_singlet_triplet_bse(o):
     assert np.allclose(f_t, gamma_t - gamma_t @ chi0 @ f_t / (2 * beta**2), atol=1e-3)
 
 
+@pytest.mark.parametrize("o", [4, 3, 2, 1])
+def test_local_gamma_ud_pp_w0_is_straight_up_down_bse_for_any_g(o):
+    """Gamma is the up-down pp BSE in the up/down pair basis also for G_12 != G_21 and a non-crossing-symmetric chi."""
+    beta, niv_pp = 10.0, 3
+    n2, dim = 2 * niv_pp, o * o * 2 * niv_pp
+    rng = np.random.default_rng(41)
+    g_mat = rng.standard_normal((o, o, n2 + 4)) + 1j * rng.standard_normal((o, o, n2 + 4)) + 2.0 * np.eye(o)[..., None]
+    chi = rng.standard_normal((o, o, o, o, n2, n2)) + 1j * rng.standard_normal((o, o, o, o, n2, n2))
+    chi = (chi + 4.0 * o * np.einsum("ad,bc,vp->abcdvp", np.eye(o), np.eye(o), np.eye(n2))).astype(np.complex64)
+    chi0 = BubbleGenerator.create_generalized_chi0_pp_w0(GreensFunction(g_mat[None, None, None]), niv_pp, beta)
+    chi_obj = LocalFourPoint(chi[:, :, :, :, None], SpinChannel.UD, 1, 2, True, True, FrequencyNotation.PP)
+    gamma = create_local_gamma_ud_pp_w0(chi_obj, chi0.extend_vn_to_diagonal(), beta).mat[:, :, :, :, 0]
+
+    def pairs(x):
+        return np.transpose(x[..., ::-1], (0, 2, 4, 1, 3, 5)).reshape(dim, dim).astype(np.complex128)
+
+    # chi0*J = -beta G_12(v) G_34(-v) delta_{v,-v'}: minus the ph straight term mapped to pp notation
+    gv = g_mat[:, :, 2:-2]
+    chi0_j = -beta * np.einsum("abv,cdv,vp->abcdvp", gv, gv[:, :, ::-1], np.eye(n2)[:, ::-1])
+    gamma_ref = beta**2 * (np.linalg.inv(pairs(chi - chi0_j)) - np.linalg.inv(pairs(-chi0_j)))
+    assert np.allclose(pairs(gamma), gamma_ref, atol=1e-2)
+
+
 @pytest.mark.parametrize("o", [5, 4, 3, 2, 1])
 def test_transform_vertex_loc_frequencies_w0_is_crossed_slot_form(o):
     """transform_vertex_loc_frequencies_w0 returns the crossed slot -F_{1432} (the permute shows only for >1 band)."""
@@ -2584,7 +2607,7 @@ def test_solve_sectors_in_memory_solves_both_channels_in_turn_on_the_single_rank
         np.zeros(shape, dtype=np.complex64), SpinChannel.TRIP, nq, 0, 2, True, True, True, FrequencyNotation.PP
     )
     giwk = GreensFunction(np.zeros(nq + (o, o, 10), dtype=np.complex64), nk=nq)
-    results = es._solve_sectors_in_memory(_make_single_rank_distributor(), gsing, gtrip, giwk, niv_pp, ["even", "odd"])
+    results = es._solve_sectors_in_memory(gsing, gtrip, giwk, niv_pp, ["even", "odd"])
 
     assert built == [niv_pp]
     assert solved == [(SpinChannel.SING, (0,), ("even", "odd")), (SpinChannel.TRIP, (0,), ("even", "odd"))]
@@ -3548,7 +3571,7 @@ def _rpa_solve_capturing_vertices(
     monkeypatch.setattr(
         es,
         "_solve_sectors_in_memory",
-        lambda dist, sing, trip, *a: captured.update(sing=sing.mat.copy(), trip=trip.mat.copy()) or {},
+        lambda sing, trip, *a: captured.update(sing=sing.mat.copy(), trip=trip.mat.copy()) or {},
     )
     v_nonloc = Interaction(np.zeros(nk + (no,) * 4), SpinChannel.NONE, nk)
     es.solve(None, None, u_loc, v_nonloc, conftest.create_comm_mock())
@@ -3919,7 +3942,7 @@ def test_streaming_fq_multi_rank_writes_disjoint_slabs_matching_single_rank(setu
     results = [None, None]
 
     def worker(comm, rank):
-        mpi_dist = MpiDistributor.create_distributor(ntasks=N_Q, comm=comm, name="Qs", output_path=None)
+        mpi_dist = MpiDistributor.create_distributor(ntasks=N_Q, comm=comm)
         local_v = Interaction(v_nonloc.mat[rank : rank + 1].copy(), SpinChannel.NONE, (1, 1, 1), True)
         results[rank] = es.create_pairing_vertex_streaming_fq(u_loc, local_v, deepcopy(gamma_r), niv_pp, mpi_dist)
 
@@ -3954,7 +3977,7 @@ def test_pairing_vertex_gather_scatter_round_trip_preserves_rank_shares(setup, m
         np.save(f"{config.output.output_path}/{name}_rank_0.npy", whole[:1])
 
     def worker(comm, rank):
-        mpi_dist = MpiDistributor.create_distributor(ntasks=N_Q, comm=comm, name="Qg", output_path=None)
+        mpi_dist = MpiDistributor.create_distributor(ntasks=N_Q, comm=comm)
         local_v = Interaction(v_nonloc.mat[rank : rank + 1].copy(), SpinChannel.NONE, (1, 1, 1), True)
         vertex = es.create_pairing_vertex_slice_q_r(u_loc, local_v, deepcopy(gamma_r), niv_pp, mpi_dist)
         own = vertex.mat.copy()

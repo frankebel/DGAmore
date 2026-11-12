@@ -4,22 +4,16 @@
 # DGAmore - Multi-Orbital Ladder Dynamical Vertex Approximation (LDGA) &
 #           Eliashberg Equation Solver for Strongly Correlated Electron Systems
 
-import os
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import numpy as np
 import pytest
 
-import dgamore.config as config
 import dgamore.mpi_utils as mu
 from dgamore.mpi_utils import MpiDistributor
 
 from tests.conftest import create_comm_mock, run_parallel, FAKE_MPI as MPI, FAKE_SOCKET
-
-# The shared conftest autouse-fixture no-ops os.remove (so the suite never deletes real files). Capture the genuine
-# os.remove here at import time, so the rank-file lifecycle test can opt back into real deletion without disturbing it.
-_REAL_OS_REMOVE = os.remove
 
 
 @pytest.fixture(autouse=True)
@@ -28,13 +22,6 @@ def _use_fake_mpi(monkeypatch):
     # and the data-movement routines all live in mpi_utils now); real mpi4py is left untouched elsewhere.
     monkeypatch.setattr(mu, "MPI", MPI)
     monkeypatch.setattr(mu, "socket", FAKE_SOCKET)
-
-
-@pytest.fixture(autouse=True)
-def _default_no_output_path(monkeypatch):
-    # The real config defaults output_path to "" (not None), which makes every MpiDistributor create a rank file on
-    # construction. None -> no files; the file-lifecycle tests opt back in by passing a tmp_path explicitly.
-    monkeypatch.setattr(config.output, "output_path", None)
 
 
 def _holder(mat, label="obj"):
@@ -232,72 +219,6 @@ def test_is_root_false_on_nonzero_rank():
     assert res[0] == (True, 0)
     assert res[1] == (False, 1)
     assert res[2] == (False, 2)
-
-
-def test_rankfile_created_and_context_manager(tmp_path, monkeypatch):
-    """MpiDistributor creates a rank file and supports the context-manager and delete cycle."""
-    d = MpiDistributor(ntasks=3, comm=comm1(), name="green", output_path=str(tmp_path))
-    assert d._fname.endswith("green_Rank00000.hdf5")
-    with d as f:
-        assert f is not None
-    # opt back in to real deletion; the shared conftest's autouse fixture otherwise no-ops os.remove
-    monkeypatch.setattr(os, "remove", _REAL_OS_REMOVE)
-    d.open_file()
-    d.close_file()
-    d.delete_file()
-    assert not os.path.exists(d._fname)
-
-
-def test_open_close_delete_are_safe_without_file():
-    """MpiDistributor file ops are no-ops without an output path: open/close/delete swallow the missing errors."""
-    d = MpiDistributor(ntasks=2, comm=comm1())
-    assert d._file is None
-    d.open_file()
-    d.close_file()
-    d.delete_file()
-
-
-def test_output_path_is_injected_not_read_from_config(tmp_path, monkeypatch):
-    """MpiDistributor uses the injected output_path, never config.output."""
-    # config.output.output_path is poisoned; the injected output_path must win and
-    # the distributor must never read the global config.
-    monkeypatch.setattr(config.output, "output_path", "/should/not/be/used")
-    d = MpiDistributor(ntasks=3, comm=comm1(), name="inj", output_path=str(tmp_path))
-    assert str(tmp_path) in d._fname
-    assert "/should/not/be/used" not in d._fname
-
-
-def test_config_output_path_is_ignored_when_not_injected(monkeypatch):
-    """MpiDistributor creates no spill file unless output_path is passed explicitly."""
-    # Even with config.output.output_path set, no spill file is created unless
-    # output_path is passed explicitly -> proves the global is no longer consulted.
-    monkeypatch.setattr(config.output, "output_path", "/should/not/be/used")
-    d = MpiDistributor(ntasks=3, comm=comm1(), name="ignored")
-    assert d._file is None
-    assert not hasattr(d, "_fname")
-
-
-def test_create_distributor_threads_output_path(tmp_path, monkeypatch):
-    """create_distributor forwards output_path to the rank file name."""
-    monkeypatch.setattr(config.output, "output_path", None)
-    d = MpiDistributor.create_distributor(ntasks=3, comm=comm1(), name="fac", output_path=str(tmp_path))
-    assert d._fname.endswith("fac_Rank00000.hdf5")
-
-
-def test_del_closes_file(tmp_path, monkeypatch):
-    """MpiDistributor.__del__ closes an open rank file."""
-    d = MpiDistributor(ntasks=1, comm=comm1(), name="del", output_path=str(tmp_path))
-    fname = d._fname
-    d.open_file()
-    d.__del__()  # exercise destructor path directly
-    assert fname.endswith("del_Rank00000.hdf5")
-
-
-def test_exit_without_open_file():
-    """MpiDistributor.__exit__ does nothing when no file is open."""
-    d = MpiDistributor(ntasks=1, comm=comm1())
-    # _file is None -> __exit__ must not attempt to close
-    d.__exit__(None, None, None)
 
 
 def test_barrier_runs_on_all_ranks():
@@ -727,7 +648,7 @@ def test_ordered_sum_single_rank_reduces_without_messages():
 
 def test_create_distributor_with_comm():
     """create_distributor builds an MpiDistributor from a given communicator."""
-    d = MpiDistributor.create_distributor(ntasks=4, comm=comm1(), name="f")
+    d = MpiDistributor.create_distributor(ntasks=4, comm=comm1())
     assert isinstance(d, MpiDistributor)
     assert d.ntasks == 4
 
@@ -737,18 +658,6 @@ def test_create_distributor_defaults_to_comm_world():
     d = MpiDistributor.create_distributor(ntasks=2, comm=None)
     assert d.comm is MPI.COMM_WORLD
     assert d.mpi_size == 1
-
-
-def test_close_file_propagates_non_os_errors():
-    """close_file swallows OSError but propagates other (programming) errors."""
-    dist = MpiDistributor.__new__(MpiDistributor)
-
-    dist._file = MagicMock(close=MagicMock(side_effect=ValueError("not an OSError")))
-    try:
-        with pytest.raises(ValueError):
-            dist.close_file()
-    finally:
-        dist._file = None  # avoid the mocked close() raising again during __del__ on GC
 
 
 def test_chunk_step_floors_to_one_and_divides():
@@ -963,6 +872,43 @@ def test_build_node_shared_array_computes_once_and_shares_within_node():
     for seen, has_win in res:
         assert has_win
         assert np.array_equal(seen, np.full((2, 3), 7.0, dtype=np.complex64))
+
+
+def test_idle_barrier_sleeps_between_polls_until_every_rank_arrived(monkeypatch):
+    """An early rank tests the barrier and sleeps the interval between tests until the last rank has arrived."""
+    comm, sleeps = MagicMock(), []
+    comm.size = 3
+    comm.Ibarrier.return_value.Test.side_effect = [False, False, True]
+    monkeypatch.setattr(mu.time, "sleep", sleeps.append)
+
+    mu.idle_barrier(comm, interval=0.25)
+
+    assert comm.Ibarrier.call_count == 1 and sleeps == [0.25, 0.25]
+
+
+def test_idle_barrier_returns_at_once_on_a_single_rank():
+    """A single-rank communicator has nobody to wait for, so no barrier is posted."""
+    comm = create_comm_mock()
+    mu.idle_barrier(comm)
+    comm.Ibarrier.assert_not_called()
+
+
+def test_build_node_shared_array_lets_the_other_ranks_sleep_while_the_root_computes(monkeypatch):
+    """Every rank of a multi-rank node passes an idle barrier before the root's array is shared, one barrier each."""
+    waits, idle = [], mu.idle_barrier
+    monkeypatch.setattr(mu, "idle_barrier", lambda comm, *a, **k: waits.append(comm.Get_size()) or idle(comm, *a, **k))
+
+    def fn(comm, rank):
+        node_comm = comm.Split_type(MPI.COMM_TYPE_SHARED)
+        arr, win = mu.build_node_shared_array(node_comm, lambda: np.full((2, 2), 3.0, dtype=np.complex64))
+        seen = np.array(arr)
+        node_comm.Barrier()
+        if win is not None:
+            win.Free()
+        return seen
+
+    _, res = run_parallel(4, fn, hostnames=["h", "h", "h", "g"])
+    assert sorted(waits) == [3, 3, 3] and all(np.array_equal(seen, np.full((2, 2), 3.0)) for seen in res)
 
 
 def test_build_node_shared_array_takes_the_dtype_of_the_root_array():

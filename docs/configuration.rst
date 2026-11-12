@@ -129,6 +129,7 @@ This section controls the self-consistency cycle.
      mixing_history_length: 3      # int
      previous_sc_path: ""          # str
      use_interpolated_sigma: False # bool
+     save_sigma_iterates: True     # bool
 
 The ``max_iter`` field puts an upper limit on the number of iterations; if the self-energy has not converged by
 then, the loop stops and the program exits. The non-local self-energy is written to the output folder for every
@@ -163,7 +164,9 @@ rebuilds the accelerated-mixing history from scratch, mixing linearly for the fi
 iterations: the previous run's pairs sample a different map, and seeding a secant model with them lets the fit cancel
 the new residual and stall at the old solution. Enabling ``use_interpolated_sigma`` makes the cycle start from the
 interpolated self-energy of the previous run, with the interpolation itself configured in the
-:ref:`self-energy interpolation section <self-energy-interpolation>`.
+:ref:`self-energy interpolation section <self-energy-interpolation>`. Setting ``save_sigma_iterates`` to ``False``
+saves disk space: during the loop only the files of the last ``mixing_history_length + 1`` iterations stay in
+``Sigma_Iterates``, and after the loop only those of the last iteration, which is all a resumed run reads.
 
 .. _stabilization:
 
@@ -728,7 +731,7 @@ never rejected; poles in the lower half plane with negative weights represent it
 scattering keeps growing toward :math:`\nu \to 0` as in a pseudogap, stay with the plain extrapolation: at the noise
 level of a DGA self-energy their pole fits are not stable. Expect about one second per flagged momentum and orbital
 pair. ``mini_pole`` and its dependency ``kneed`` are research codes and therefore pinned to exact versions in
-``requirements.txt``.
+``pyproject.toml``.
 
 Output
 ------

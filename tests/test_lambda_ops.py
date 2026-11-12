@@ -377,8 +377,9 @@ def test_find_lambda_matrix_on_two_atoms_fits_only_the_on_site_blocks():
     lattice_sum = np.linalg.inv(chi_inv_qw + lambda_star).sum(axis=(0, 1)).real / (beta * nq)
     s_r = np.where(on_site, lattice_sum, 0.0)
 
+    # converged past the default tolerance: here the mass error is ~500 times the residual
     lam = MultiOrbitalLambdaCorrection.find_lambda_matrix(
-        _synthetic_chi_qw(n_bands, nq, nw, seed=11), s_r, beta, nq, atoms=[0, 0, 1, 1]
+        _synthetic_chi_qw(n_bands, nq, nw, seed=11), s_r, beta, nq, atoms=[0, 0, 1, 1], eps=1e-10
     )
 
     assert np.allclose(lam, lambda_star, atol=1e-4)
@@ -540,13 +541,24 @@ def test_multiorbital_perform_single_keeps_the_tail_for_split_occupations(monkey
     assert np.allclose(lam[np.ix_([1, 2], [1, 2])], 0.0, atol=1e-12)
 
 
-def test_find_lambda_matrix_raises_when_no_on_site_mass_lifts_the_static_pole():
-    """A static pole that lives purely between two atoms is out of reach of on-site masses: the solver raises."""
-    chi_inv = np.diag([2.0, -1.0, -1.0, 2.0]).astype(np.complex128)  # pairs (00), (01), (10), (11), atoms {0}, {1}
-    chi_qw = np.linalg.inv(chi_inv)[None, None]
+def test_find_lambda_matrix_ignores_a_static_pole_between_the_atoms():
+    """A soft mode on both atoms that leaks into the pairs between them makes the inter-atom block of chi^-1 negative,
+    which no on-site mass changes; the feasibility is judged on the on-site pairs alone (all the interaction contracts),
+    so the planted on-site mass is recovered instead of raising."""
+    mode = np.array([1.0, 0.5, 0.5, 1.0])  # pairs (00), (01), (10), (11) of the atoms {0}, {1}
+    chi = np.eye(4) + (-0.05 - 1.0) * np.outer(mode, mode) / (mode @ mode)  # static eigenvalue -0.05 along the mode
+    on_site = [0, 3]
+    assert np.linalg.eigvalsh(np.linalg.inv(chi)[np.ix_([1, 2], [1, 2])]).min() < -3.0
+    lambda_star = np.diag([0.3, 0.0, 0.0, 0.7]).astype(np.complex128)
+    corrected = np.linalg.inv(np.linalg.inv(chi[np.ix_(on_site, on_site)]) + lambda_star[np.ix_(on_site, on_site)])
+    s_r = np.zeros((4, 4), dtype=np.complex128)
+    s_r[np.ix_(on_site, on_site)] = np.diag(np.diag(corrected)) / 5.0
 
-    with pytest.raises(ValueError):
-        MultiOrbitalLambdaCorrection.find_lambda_matrix(chi_qw, np.zeros((4, 4)), 5.0, 1, atoms=[0, 1])
+    lam = MultiOrbitalLambdaCorrection.find_lambda_matrix(
+        chi.astype(np.complex128)[None, None], s_r, 5.0, 1, atoms=[0, 1]
+    )
+
+    assert np.allclose(lam, lambda_star, atol=1e-6)
 
 
 def test_multiorbital_perform_single_matches_single_band_for_magn():
@@ -623,9 +635,10 @@ def test_multiorbital_perform_single_recovers_matrix_mass_and_sum_rule():
     assert np.allclose(lhs, s_r, atol=1e-5)
 
 
-def test_multiorbital_perform_single_takes_the_atoms_from_the_ineq_ordering():
+def test_multiorbital_perform_single_takes_the_atoms_from_the_ineq_ordering(monkeypatch):
     """Two one-orbital atoms of one inequivalent type: the planted on-site mass is recovered against a target that is
     zero between the atoms, and the pairs (01), (10) and the (00)-(11) entries carry no mass."""
+    monkeypatch.setattr(MultiOrbitalLambdaCorrection, "_EPS", 1e-10)  # recovery past the default residual tolerance
     config.sys.beta = 8.0
     config.sys.n_bands = 2
     config.dmft.ineq_ordering, config.dmft.n_bands_per_ineq = [1, 1], [1]
